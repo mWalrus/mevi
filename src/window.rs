@@ -2,7 +2,8 @@ use anyhow::Result;
 use x11rb::connection::Connection;
 use x11rb::image::Image;
 use x11rb::protocol::xproto::{
-    ConnectionExt, CreateGCAux, CreateWindowAux, PropMode, Screen, Window, WindowClass,
+    ConnectionExt, CreateGCAux, CreateWindowAux, EventMask, Pixmap, PropMode, Screen, Window,
+    WindowClass,
 };
 use x11rb::wrapper::ConnectionExt as _;
 
@@ -14,7 +15,7 @@ pub fn init_window(
     atoms: &Atoms,
     image: &Image,
     file_name: String,
-) -> Result<Window> {
+) -> Result<(Window, Pixmap, u32)> {
     let win_id = conn.generate_id()?;
     let pixmap_id = conn.generate_id()?;
     let gc_id = conn.generate_id()?;
@@ -24,7 +25,7 @@ pub fn init_window(
     conn.create_gc(
         gc_id,
         screen.root,
-        &CreateGCAux::default().graphics_exposures(0),
+        &CreateGCAux::default().graphics_exposures(1),
     )?;
 
     conn.create_pixmap(
@@ -37,7 +38,9 @@ pub fn init_window(
 
     image.put(conn, pixmap_id, gc_id, 0, 0)?;
 
-    conn.free_gc(gc_id)?;
+    let win_aux = CreateWindowAux::new()
+        .event_mask(EventMask::EXPOSURE | EventMask::STRUCTURE_NOTIFY | EventMask::NO_EVENT)
+        .background_pixel(screen.black_pixel);
 
     conn.create_window(
         screen.root_depth,
@@ -50,10 +53,8 @@ pub fn init_window(
         0,
         WindowClass::INPUT_OUTPUT,
         0,
-        &CreateWindowAux::default().background_pixmap(pixmap_id),
+        &win_aux,
     )?;
-
-    conn.free_pixmap(pixmap_id)?;
 
     conn.change_property8(
         PropMode::REPLACE,
@@ -79,5 +80,5 @@ pub fn init_window(
         &[atoms.WM_DELETE_WINDOW],
     )?;
 
-    Ok(win_id)
+    Ok((win_id, pixmap_id, gc_id))
 }

@@ -1,7 +1,6 @@
 use anyhow::Result;
 use std::borrow::Cow;
 use std::env;
-use std::path::PathBuf;
 use x11rb::image::{BitsPerPixel, Image, ImageOrder, ScanlinePad};
 
 pub fn get_image_from_args() -> Result<(Image<'static>, String)> {
@@ -23,11 +22,6 @@ pub fn get_image_from_args() -> Result<(Image<'static>, String)> {
         ImageOrder::LsbFirst,
         Cow::from(img_buffer.into_vec()),
     )?;
-    let file_name = PathBuf::from(file_path)
-        .file_name()
-        .unwrap()
-        .to_string_lossy()
-        .to_string();
 
-    Ok((img, file_name))
+    Ok((img, file_path.to_string_lossy().to_string()))
 }

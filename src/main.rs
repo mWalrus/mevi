@@ -2,7 +2,7 @@ use anyhow::Result;
 use x11rb::connection::Connection;
 use x11rb::image::ColorComponent;
 use x11rb::image::PixelLayout;
-use x11rb::protocol::xproto::*;
+use x11rb::protocol::xproto::{self, *};
 use x11rb::protocol::Event;
 
 mod img;
@@ -30,7 +30,7 @@ fn main() -> Result<()> {
 
     let screen = &conn.setup().roots[screen_num];
 
-    let (image, file_name) = img::get_image_from_args()?;
+    let (image, file_path) = img::get_image_from_args()?;
     let foreign_layout = PixelLayout::new(
         ColorComponent::new(8, 0)?,
         ColorComponent::new(8, 8)?,
@@ -40,16 +40,48 @@ fn main() -> Result<()> {
     let image = image.reencode(foreign_layout, pixel_layout, conn.setup())?;
 
     let atoms = Atoms::new(conn)?.reply()?;
-    let win_id = window::init_window(conn, screen, &atoms, &image, file_name)?;
+    let (win_id, pixmap_id, gc_id) = window::init_window(conn, screen, &atoms, &image, file_path)?;
 
     conn.map_window(win_id)?;
     conn.flush()?;
+
+    let mut is_first_iteration = true;
 
     loop {
         let event = conn.wait_for_event()?;
 
         match event {
-            Event::Expose(evt) => if evt.count == 0 {},
+            Event::Expose(evt) => {
+                println!("EXPOSE: {evt:?}");
+                if is_first_iteration {
+                    xproto::copy_area(
+                        conn,
+                        pixmap_id,
+                        win_id,
+                        gc_id,
+                        0,
+                        0,
+                        0,
+                        0,
+                        image.width(),
+                        image.height(),
+                    )?;
+                    is_first_iteration = false;
+                } else if evt.x < image.width() || evt.y < image.height() {
+                    xproto::copy_area(
+                        conn,
+                        pixmap_id,
+                        win_id,
+                        gc_id,
+                        evt.x as i16,
+                        evt.y as i16,
+                        evt.x as i16,
+                        evt.y as i16,
+                        evt.width,
+                        evt.height,
+                    )?;
+                }
+            }
             Event::ConfigureNotify(_) => {}
             Event::ClientMessage(evt) => {
                 let data = evt.data.as_data32();
@@ -59,8 +91,9 @@ fn main() -> Result<()> {
                 }
             }
             Event::Error(e) => eprintln!("Received error: {e:?}"),
-            _ => println!("Got an unknown event"),
+            ev => println!("Got an unknown event: {ev:?}"),
         }
+        conn.flush()?;
     }
 
     Ok(())

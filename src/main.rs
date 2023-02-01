@@ -38,7 +38,10 @@ fn main() -> Result<()> {
         ColorComponent::new(8, 16)?,
     );
     let pixel_layout = screen::check_visual(screen, screen.root_visual);
+
     let image = image.reencode(foreign_layout, pixel_layout, conn.setup())?;
+    let (img_width, img_height) = (image.width(), image.height());
+
     let bg_image = bg_image.reencode(foreign_layout, pixel_layout, conn.setup())?;
 
     let atoms = Atoms::new(conn)?.reply()?;
@@ -57,19 +60,10 @@ fn main() -> Result<()> {
             Event::Expose(evt) => {
                 println!("EXPOSE: {evt:?}");
                 if is_first_iteration {
-                    xproto::copy_area(
-                        conn,
-                        pixmap_id,
-                        win_id,
-                        gc_id,
-                        0,
-                        0,
-                        0,
-                        0,
-                        image.width(),
-                        image.height(),
-                    )?;
                     is_first_iteration = false;
+                    xproto::copy_area(
+                        conn, pixmap_id, win_id, gc_id, 0, 0, 0, 0, img_width, img_height,
+                    )?;
                 } else {
                     xproto::copy_area(
                         conn,
@@ -83,7 +77,8 @@ fn main() -> Result<()> {
                         evt.width,
                         evt.height,
                     )?;
-                }
+                };
+                conn.flush()?;
             }
             Event::ConfigureNotify(_) => {}
             Event::ClientMessage(evt) => {

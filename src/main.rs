@@ -51,23 +51,24 @@ fn main() -> Result<()> {
     conn.map_window(win)?;
     conn.flush()?;
 
-    let mut is_first_iteration = true;
-
     loop {
         let event = conn.wait_for_event()?;
 
         match event {
             Event::Expose(e) => {
                 println!("EXPOSE: {e:?}");
-                if is_first_iteration {
-                    is_first_iteration = false;
-                    xproto::copy_area(conn, pm, win, gc, 0, 0, 0, 0, iw, ih)?;
-                } else {
-                    xproto::copy_area(
-                        conn, pm, win, gc, e.x as i16, e.y as i16, e.x as i16, e.y as i16, e.width,
-                        e.height,
-                    )?;
-                };
+                xproto::copy_area(
+                    conn,
+                    pm,
+                    win,
+                    gc,
+                    e.x as i16,
+                    e.y as i16,
+                    e.x as i16,
+                    e.y as i16,
+                    e.width.min(iw),
+                    e.height.min(ih),
+                )?;
                 conn.flush()?;
             }
             Event::ConfigureNotify(_) => {}

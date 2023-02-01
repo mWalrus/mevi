@@ -330,6 +330,7 @@ dependencies = [
  "anyhow",
  "gethostname 0.4.1",
  "image",
+ "libc",
  "x11rb",
 ]
 
@@ -707,6 +708,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cdf3c79412dd91bae7a7366b8ad1565a85e35dd049affc3a6a2c549e97419617"
 dependencies = [
  "gethostname 0.2.3",
+ "libc",
  "nix",
  "winapi",
  "winapi-wsapoll",

@@ -31,6 +31,7 @@ fn main() -> Result<()> {
     let screen = &conn.setup().roots[screen_num];
 
     let (image, file_path) = img::get_image_from_args()?;
+    let bg_image = img::get_bg_image()?;
     let foreign_layout = PixelLayout::new(
         ColorComponent::new(8, 0)?,
         ColorComponent::new(8, 8)?,
@@ -38,9 +39,11 @@ fn main() -> Result<()> {
     );
     let pixel_layout = screen::check_visual(screen, screen.root_visual);
     let image = image.reencode(foreign_layout, pixel_layout, conn.setup())?;
+    let bg_image = bg_image.reencode(foreign_layout, pixel_layout, conn.setup())?;
 
     let atoms = Atoms::new(conn)?.reply()?;
-    let (win_id, pixmap_id, gc_id) = window::init_window(conn, screen, &atoms, &image, file_path)?;
+    let (win_id, pixmap_id, gc_id) =
+        window::init_window(conn, screen, &atoms, &image, &bg_image, file_path)?;
 
     conn.map_window(win_id)?;
     conn.flush()?;
@@ -67,7 +70,7 @@ fn main() -> Result<()> {
                         image.height(),
                     )?;
                     is_first_iteration = false;
-                } else if evt.x < image.width() || evt.y < image.height() {
+                } else {
                     xproto::copy_area(
                         conn,
                         pixmap_id,

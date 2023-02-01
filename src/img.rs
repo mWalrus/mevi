@@ -25,3 +25,20 @@ pub fn get_image_from_args() -> Result<(Image<'static>, String)> {
 
     Ok((img, file_path.to_string_lossy().to_string()))
 }
+
+pub fn get_bg_image() -> Result<Image<'static>> {
+    let bytes = include_bytes!("resources/transparent-bg-smaller.png");
+
+    let img_buffer = image::load_from_memory(bytes)?.into_rgb8();
+    let img = Image::new(
+        img_buffer.width() as u16,
+        img_buffer.height() as u16,
+        ScanlinePad::Pad8,
+        24,
+        BitsPerPixel::B24,
+        ImageOrder::LsbFirst,
+        Cow::from(img_buffer.into_vec()),
+    )?;
+
+    Ok(img)
+}

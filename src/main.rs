@@ -29,17 +29,10 @@ fn main() -> Result<()> {
     let (conn, screen_num) = x11rb::connect(None)?;
     let conn = &conn;
 
-    if let Some((major, minor)) = check_shm_version(conn)? {
-        if major < 1 || (major == 1 && minor < 2) {
-            eprintln!("X11 server supports version {major}.{minor} of the SHM extension, but version 1.2 is needed.");
-            return Ok(());
-        }
-    }
-
     let screen = &conn.setup().roots[screen_num];
 
-    let (image, file_path) = img::get_image_from_args()?;
-    let bg_image = img::get_bg_image()?;
+    let (img, file_path) = img::get_image_from_args()?;
+    let bg_img = img::get_bg_image()?;
     let foreign_layout = PixelLayout::new(
         ColorComponent::new(8, 0)?,
         ColorComponent::new(8, 8)?,
@@ -47,16 +40,15 @@ fn main() -> Result<()> {
     );
     let pixel_layout = screen::check_visual(screen, screen.root_visual);
 
-    let image = image.reencode(foreign_layout, pixel_layout, conn.setup())?;
-    let (img_width, img_height) = (image.width(), image.height());
+    let img = img.reencode(foreign_layout, pixel_layout, conn.setup())?;
+    let (iw, ih) = (img.width(), img.height());
 
-    let bg_image = bg_image.reencode(foreign_layout, pixel_layout, conn.setup())?;
+    let bg_img = bg_img.reencode(foreign_layout, pixel_layout, conn.setup())?;
 
     let atoms = Atoms::new(conn)?.reply()?;
-    let (win_id, pixmap_id, gc_id) =
-        window::init_window(conn, screen, &atoms, &image, &bg_image, file_path)?;
+    let (win, pm, gc) = window::init_window(conn, screen, &atoms, &img, &bg_img, file_path)?;
 
-    conn.map_window(win_id)?;
+    conn.map_window(win)?;
     conn.flush()?;
 
     let mut is_first_iteration = true;
@@ -65,25 +57,15 @@ fn main() -> Result<()> {
         let event = conn.wait_for_event()?;
 
         match event {
-            Event::Expose(evt) => {
-                println!("EXPOSE: {evt:?}");
+            Event::Expose(e) => {
+                println!("EXPOSE: {e:?}");
                 if is_first_iteration {
                     is_first_iteration = false;
-                    xproto::copy_area(
-                        conn, pixmap_id, win_id, gc_id, 0, 0, 0, 0, img_width, img_height,
-                    )?;
+                    xproto::copy_area(conn, pm, win, gc, 0, 0, 0, 0, iw, ih)?;
                 } else {
                     xproto::copy_area(
-                        conn,
-                        pixmap_id,
-                        win_id,
-                        gc_id,
-                        evt.x as i16,
-                        evt.y as i16,
-                        evt.x as i16,
-                        evt.y as i16,
-                        evt.width,
-                        evt.height,
+                        conn, pm, win, gc, e.x as i16, e.y as i16, e.x as i16, e.y as i16, e.width,
+                        e.height,
                     )?;
                 };
                 conn.flush()?;
@@ -91,7 +73,7 @@ fn main() -> Result<()> {
             Event::ConfigureNotify(_) => {}
             Event::ClientMessage(evt) => {
                 let data = evt.data.as_data32();
-                if evt.format == 32 && evt.window == win_id && data[0] == atoms.WM_DELETE_WINDOW {
+                if evt.format == 32 && evt.window == win && data[0] == atoms.WM_DELETE_WINDOW {
                     println!("Exit signal received");
                     break;
                 }
@@ -102,15 +84,4 @@ fn main() -> Result<()> {
     }
 
     Ok(())
-}
-
-pub fn check_shm_version<C: Connection>(conn: &C) -> Result<Option<(u16, u16)>> {
-    if conn
-        .extension_information(shm::X11_EXTENSION_NAME)?
-        .is_none()
-    {
-        return Ok(None);
-    }
-    let shm_version = conn.shm_query_version()?.reply()?;
-    Ok(Some((shm_version.major_version, shm_version.minor_version)))
 }

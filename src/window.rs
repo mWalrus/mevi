@@ -13,54 +13,26 @@ pub fn init_window(
     conn: &impl Connection,
     screen: &Screen,
     atoms: &Atoms,
-    image: &Image,
-    bg_image: &Image,
-    file_name: String,
+    img: &Image,
+    bg_img: &Image,
+    file_path: String,
 ) -> Result<(Window, Pixmap, u32)> {
     let win_id = conn.generate_id()?;
-    let pixmap_id = conn.generate_id()?;
-    let gc_id = conn.generate_id()?;
-    let bg_pixmap_id = conn.generate_id()?;
-    let bg_gc_id = conn.generate_id()?;
 
-    let title = format!("{TITLE} - {file_name}");
+    let title = format!("{TITLE} - {file_path}");
 
-    conn.create_gc(
-        gc_id,
-        screen.root,
-        &CreateGCAux::default().graphics_exposures(1),
-    )?;
+    let (img_pm, img_gc) = create_pixmap_and_gc(conn, screen, img.width(), img.height())?;
+    let (bg_img_pm, bg_img_gc) =
+        create_pixmap_and_gc(conn, screen, bg_img.width(), bg_img.height())?;
 
-    conn.create_pixmap(
-        screen.root_depth,
-        pixmap_id,
-        screen.root,
-        image.width(),
-        image.height(),
-    )?;
+    bg_img.put(conn, bg_img_pm, bg_img_gc, 0, 0)?;
+    conn.free_gc(bg_img_gc)?;
 
-    conn.create_gc(
-        bg_gc_id,
-        screen.root,
-        &CreateGCAux::default().graphics_exposures(0),
-    )?;
-
-    conn.create_pixmap(
-        screen.root_depth,
-        bg_pixmap_id,
-        screen.root,
-        bg_image.width(),
-        bg_image.height(),
-    )?;
-
-    bg_image.put(conn, bg_pixmap_id, bg_gc_id, 0, 0)?;
-    conn.free_gc(bg_gc_id)?;
-
-    image.put(conn, pixmap_id, gc_id, 0, 0)?;
+    img.put(conn, img_pm, img_gc, 0, 0)?;
 
     let win_aux = CreateWindowAux::default()
         .event_mask(EventMask::EXPOSURE | EventMask::STRUCTURE_NOTIFY | EventMask::NO_EVENT)
-        .background_pixmap(bg_pixmap_id);
+        .background_pixmap(bg_img_pm);
 
     conn.create_window(
         screen.root_depth,
@@ -76,7 +48,7 @@ pub fn init_window(
         &win_aux,
     )?;
 
-    conn.free_pixmap(bg_pixmap_id)?;
+    conn.free_pixmap(bg_img_pm)?;
 
     conn.change_property8(
         PropMode::REPLACE,
@@ -102,5 +74,20 @@ pub fn init_window(
         &[atoms.WM_DELETE_WINDOW],
     )?;
 
-    Ok((win_id, pixmap_id, gc_id))
+    Ok((win_id, img_pm, img_gc))
+}
+
+fn create_pixmap_and_gc<'c, C: Connection>(
+    conn: &'c C,
+    s: &Screen,
+    w: u16,
+    h: u16,
+) -> Result<(u32, u32)> {
+    let pm = conn.generate_id()?;
+    let gc = conn.generate_id()?;
+
+    conn.create_gc(gc, s.root, &CreateGCAux::default().graphics_exposures(0))?;
+    conn.create_pixmap(s.root_depth, pm, s.root, w, h)?;
+
+    Ok((pm, gc))
 }

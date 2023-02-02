@@ -46,9 +46,9 @@ fn main() -> Result<()> {
     let bg_img = bg_img.reencode(foreign_layout, pixel_layout, conn.setup())?;
 
     let atoms = Atoms::new(conn)?.reply()?;
-    let (win, pm, gc) = window::init_window(conn, screen, &atoms, &img, &bg_img, file_path)?;
+    let state = window::init_window(conn, screen, &atoms, &img, &bg_img, file_path)?;
 
-    conn.map_window(win)?;
+    conn.map_window(state.win)?;
     conn.flush()?;
 
     loop {
@@ -57,24 +57,26 @@ fn main() -> Result<()> {
         match event {
             Event::Expose(e) => {
                 println!("EXPOSE: {e:?}");
-                xproto::copy_area(
-                    conn,
-                    pm,
-                    win,
-                    gc,
-                    e.x as i16,
-                    e.y as i16,
-                    e.x as i16,
-                    e.y as i16,
+                conn.copy_area(
+                    state.pm,
+                    state.win,
+                    state.gc,
+                    e.x as _,
+                    e.y as _,
+                    e.x as _,
+                    e.y as _,
                     e.width.min(iw),
                     e.height.min(ih),
                 )?;
-                conn.flush()?;
+                if e.count == 0 {
+                    conn.flush()?;
+                }
             }
             Event::ConfigureNotify(_) => {}
             Event::ClientMessage(evt) => {
                 let data = evt.data.as_data32();
-                if evt.format == 32 && evt.window == win && data[0] == atoms.WM_DELETE_WINDOW {
+                if evt.format == 32 && evt.window == state.win && data[0] == atoms.WM_DELETE_WINDOW
+                {
                     println!("Exit signal received");
                     break;
                 }

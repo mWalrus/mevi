@@ -2,12 +2,24 @@ use anyhow::Result;
 use x11rb::connection::Connection;
 use x11rb::image::Image;
 use x11rb::protocol::xproto::{
-    ConnectionExt, CreateGCAux, CreateWindowAux, EventMask, Pixmap, PropMode, Screen, Window,
-    WindowClass,
+    ConnectionExt, CreateGCAux, CreateWindowAux, EventMask, Gcontext, Pixmap, PropMode, Screen,
+    Window, WindowClass,
 };
 use x11rb::wrapper::ConnectionExt as _;
 
 use crate::{Atoms, INITIAL_SIZE, TITLE};
+
+pub struct WindowState {
+    pub win: Window,
+    pub pm: Pixmap,
+    pub gc: Gcontext,
+}
+
+impl WindowState {
+    fn new(win: Window, pm: Pixmap, gc: Gcontext) -> Self {
+        Self { win, pm, gc }
+    }
+}
 
 pub fn init_window(
     conn: &impl Connection,
@@ -16,7 +28,7 @@ pub fn init_window(
     img: &Image,
     bg_img: &Image,
     file_path: String,
-) -> Result<(Window, Pixmap, u32)> {
+) -> Result<WindowState> {
     let win_id = conn.generate_id()?;
 
     let title = format!("{TITLE} - {file_path}");
@@ -31,7 +43,7 @@ pub fn init_window(
     img.put(conn, img_pm, img_gc, 0, 0)?;
 
     let win_aux = CreateWindowAux::default()
-        .event_mask(EventMask::EXPOSURE | EventMask::STRUCTURE_NOTIFY | EventMask::NO_EVENT)
+        .event_mask(EventMask::EXPOSURE | EventMask::STRUCTURE_NOTIFY)
         .background_pixmap(bg_img_pm);
 
     conn.create_window(
@@ -74,7 +86,7 @@ pub fn init_window(
         &[atoms.WM_DELETE_WINDOW],
     )?;
 
-    Ok((win_id, img_pm, img_gc))
+    Ok(WindowState::new(win_id, img_pm, img_gc))
 }
 
 fn create_pixmap_and_gc<'c, C: Connection>(

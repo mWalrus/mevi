@@ -13,6 +13,7 @@ mod img;
 #[macro_use]
 mod log;
 mod screen;
+mod shm;
 mod window;
 
 pub static INITIAL_SIZE: (u16, u16) = (600, 800);
@@ -44,6 +45,19 @@ fn main() -> Result<()> {
     let (conn, screen_num) = x11rb::connect(None)?;
     let conn = &conn;
 
+    match shm::check_shm_version(conn)? {
+        None => {
+            mevi_err!("X11 server does not support the SHM extension");
+            return Ok(());
+        }
+        Some((major, minor)) => {
+            if major < 1 || (major == 1 && minor < 2) {
+                mevi_err!("X11 server supports version {major}.{minor} of the SHM extension, but version 1.2 is needed");
+                return Ok(());
+            }
+        }
+    }
+
     let screen = &conn.setup().roots[screen_num];
 
     let img = img::load_image(&CLI.path)?;
@@ -56,6 +70,8 @@ fn main() -> Result<()> {
     let pixel_layout = screen::check_visual(screen, screen.root_visual);
 
     let img = img.reencode(foreign_layout, pixel_layout, conn.setup())?;
+    let img = img.native(conn.setup())?;
+
     let (iw, ih) = (img.width(), img.height());
 
     let bg_img = bg_img.reencode(foreign_layout, pixel_layout, conn.setup())?;
@@ -77,14 +93,15 @@ fn main() -> Result<()> {
     loop {
         let event = conn.wait_for_event()?;
 
-        mevi_event!(event);
-
         match event {
             Event::Expose(e) => {
+                mevi_event!(event);
+
+                // FIXME: work out this shit
                 conn.copy_area(
-                    state.pm,
+                    0,
                     state.win,
-                    state.gc,
+                    0,
                     e.x as _,
                     e.y as _,
                     e.x as _,
@@ -105,7 +122,9 @@ fn main() -> Result<()> {
                 }
             }
             Event::Error(e) => mevi_err!("Received error: {e:?}"),
-            _ => {} // ev => println!("Got an unknown event: {ev:?}"),
+            _ => {
+                mevi_event!(event);
+            } // ev => println!("Got an unknown event: {ev:?}"),
         }
     }
 

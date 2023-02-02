@@ -26,6 +26,6 @@ macro_rules! mevi_info {
 macro_rules! mevi_err {
     ($($arg:tt)*) => {{
         use ::colored::Colorize;
-        println!("{} {}", "[Error]".bold().red(), format_args!($($arg)*));
+        println!("{}: {}", "[Error]".bold().red(), format_args!($($arg)*));
     }};
 }

@@ -3,11 +3,10 @@ macro_rules! __mevi_dbg {
         if *$crate::SHOULD_PRINT_DEBUG {
             use ::colored::Colorize;
             let t = match $type {
-                $crate::LogType::Event => "[Event]:".bold().blue(),
-                $crate::LogType::Error => "[Error]:".bold().red(),
-                $crate::LogType::Info => "[Info]:".bold(),
+                $crate::LogType::Event => "[Event]".bold().blue(),
+                $crate::LogType::Info => "[Info]".bold(),
             };
-            println!("{} {}", t, format_args!($($arg)*));
+            println!("{}: {}", t, format_args!($($arg)*));
         }
     }};
 }
@@ -18,17 +17,15 @@ macro_rules! mevi_event {
     }};
 }
 
-macro_rules! mevi_err {
-    ($($arg:tt)*) => {{
-        __mevi_dbg!($crate::LogType::Error, $($arg)*);
-    }};
-}
-
 macro_rules! mevi_info {
     ($($arg:tt)*) => {{
         __mevi_dbg!($crate::LogType::Info, $($arg)*);
     }};
 }
 
-// TODO: implement error logging
-// TODO: colorize output with `colored`
+macro_rules! mevi_err {
+    ($($arg:tt)*) => {{
+        use ::colored::Colorize;
+        println!("{} {}", "[Error]".bold().red(), format_args!($($arg)*));
+    }};
+}

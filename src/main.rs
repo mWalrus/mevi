@@ -20,7 +20,6 @@ pub static TITLE: &'static str = "mevi";
 
 pub(crate) enum LogType {
     Event,
-    Error,
     Info,
 }
 
@@ -97,7 +96,6 @@ fn main() -> Result<()> {
                     conn.flush()?;
                 }
             }
-            Event::ConfigureNotify(_) => {}
             Event::ClientMessage(evt) => {
                 let data = evt.data.as_data32();
                 if evt.format == 32 && evt.window == state.win && data[0] == atoms.WM_DELETE_WINDOW

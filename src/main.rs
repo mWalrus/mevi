@@ -1,4 +1,5 @@
 use anyhow::Result;
+use lazy_static::lazy_static;
 use x11rb::connection::Connection;
 use x11rb::image::ColorComponent;
 use x11rb::image::PixelLayout;
@@ -6,6 +7,7 @@ use x11rb::protocol::shm::{self, ConnectionExt as _};
 use x11rb::protocol::xproto::{self, *};
 use x11rb::protocol::Event;
 
+mod cli;
 mod img;
 mod screen;
 mod window;
@@ -13,6 +15,10 @@ mod window;
 pub static INITIAL_SIZE: (u16, u16) = (600, 800);
 pub static TITLE: &'static str = "mevi";
 
+lazy_static! {
+    static ref CLI: Cli = Cli::parse();
+    static ref SHOULD_PRINT_DEBUG: bool = CLI.debug;
+}
 x11rb::atom_manager! {
     pub Atoms: AtomsCookie {
         WM_PROTOCOLS,
@@ -31,7 +37,7 @@ fn main() -> Result<()> {
 
     let screen = &conn.setup().roots[screen_num];
 
-    let (img, file_path) = img::get_image_from_args()?;
+    let img = img::load_image(&CLI.path)?;
     let bg_img = img::get_bg_image()?;
     let foreign_layout = PixelLayout::new(
         ColorComponent::new(8, 0)?,
@@ -46,7 +52,15 @@ fn main() -> Result<()> {
     let bg_img = bg_img.reencode(foreign_layout, pixel_layout, conn.setup())?;
 
     let atoms = Atoms::new(conn)?.reply()?;
-    let state = window::init_window(conn, screen, &atoms, &img, &bg_img, file_path)?;
+
+    let state = window::init_window(
+        conn,
+        screen,
+        &atoms,
+        &img,
+        &bg_img,
+        CLI.path.to_string_lossy().to_string(),
+    )?;
 
     conn.map_window(state.win)?;
     conn.flush()?;

@@ -1,17 +1,9 @@
 use anyhow::Result;
-use std::borrow::Cow;
-use std::env;
+use std::{borrow::Cow, path::PathBuf};
 use x11rb::image::{BitsPerPixel, Image, ImageOrder, ScanlinePad};
 
-pub fn get_image_from_args() -> Result<(Image<'static>, String)> {
-    let fp = if env::args_os().count() == 2 {
-        env::args_os().nth(1).unwrap()
-    } else {
-        eprintln!("Please supply an image path");
-        std::process::exit(1);
-    };
-
-    let img_buf = image::open(&fp)?.into_rgb8();
+pub fn load_image(fp: &PathBuf) -> Result<Image<'static>> {
+    let img_buf = image::open(fp)?.into_rgb8();
 
     let img = Image::new(
         img_buf.width() as u16,
@@ -23,7 +15,7 @@ pub fn get_image_from_args() -> Result<(Image<'static>, String)> {
         Cow::from(img_buf.into_vec()),
     )?;
 
-    Ok((img, fp.to_string_lossy().to_string()))
+    Ok(img)
 }
 
 pub fn get_bg_image() -> Result<Image<'static>> {

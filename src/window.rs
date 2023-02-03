@@ -2,8 +2,8 @@ use anyhow::Result;
 use x11rb::connection::Connection;
 use x11rb::image::Image;
 use x11rb::protocol::xproto::{
-    ConnectionExt, CreateGCAux, CreateWindowAux, EventMask, Gcontext, Pixmap, PropMode, Screen,
-    Window, WindowClass,
+    ConnectionExt, CreateGCAux, CreateWindowAux, EventMask, Gcontext, Gravity, Pixmap, PropMode,
+    Screen, Window, WindowClass,
 };
 use x11rb::wrapper::ConnectionExt as _;
 
@@ -44,6 +44,7 @@ pub fn init_window(
 
     let win_aux = CreateWindowAux::default()
         .event_mask(EventMask::EXPOSURE | EventMask::STRUCTURE_NOTIFY)
+        .bit_gravity(Gravity::NORTH_WEST)
         .background_pixmap(bg_img_pm);
 
     conn.create_window(

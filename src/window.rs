@@ -2,8 +2,8 @@ use anyhow::Result;
 use x11rb::connection::Connection;
 use x11rb::image::Image;
 use x11rb::protocol::xproto::{
-    ConnectionExt, CreateGCAux, CreateWindowAux, EventMask, Gcontext, Gravity, Pixmap, PropMode,
-    Screen, Window, WindowClass,
+    BackingStore, ConnectionExt, CreateGCAux, CreateWindowAux, EventMask, Gcontext, Gravity,
+    Pixmap, PropMode, Screen, Window, WindowClass,
 };
 use x11rb::wrapper::ConnectionExt as _;
 
@@ -19,6 +19,11 @@ impl WindowState {
     fn new(win: Window, pm: Pixmap, gc: Gcontext) -> Self {
         Self { win, pm, gc }
     }
+}
+
+pub struct Coordinate {
+    pub x: i16,
+    pub y: i16,
 }
 
 pub fn init_window(
@@ -44,7 +49,10 @@ pub fn init_window(
 
     let win_aux = CreateWindowAux::default()
         .event_mask(EventMask::EXPOSURE | EventMask::STRUCTURE_NOTIFY)
-        .bit_gravity(Gravity::NORTH_WEST)
+        .bit_gravity(Gravity::CENTER)
+        .backing_store(BackingStore::NOT_USEFUL)
+        .save_under(0)
+        .override_redirect(0)
         .background_pixmap(bg_img_pm);
 
     conn.create_window(
@@ -103,4 +111,24 @@ fn create_pixmap_and_gc<'c, C: Connection>(
     conn.create_pixmap(s.root_depth, pm, s.root, w, h)?;
 
     Ok((pm, gc))
+}
+
+pub fn center_coordinates<'c, C: Connection>(
+    conn: &'c C,
+    win: Window,
+    iw: u16,
+    ih: u16,
+) -> Result<(i16, i16)> {
+    let attrs = conn.get_geometry(win)?.reply()?;
+    mevi_info!("Image dimensions: {iw}x{ih}");
+    let (cx, cy) = (attrs.width as i16 / 2, attrs.height as i16 / 2);
+    mevi_info!(
+        "Center of window with size {}x{}: x -> {cx}, y -> {cy}",
+        attrs.width,
+        attrs.height
+    );
+    let ix = cx - (iw as i16 / 2);
+    let iy = cy - (ih as i16 / 2);
+    mevi_info!("Position to start drawing from: x -> {ix}, y -> {iy}");
+    Ok((ix, iy))
 }

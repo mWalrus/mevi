@@ -2,6 +2,7 @@ use anyhow::Result;
 use clap::Parser;
 use cli::Cli;
 use lazy_static::lazy_static;
+use window::Coordinate;
 use x11rb::connection::Connection;
 use x11rb::image::ColorComponent;
 use x11rb::image::PixelLayout;
@@ -74,27 +75,23 @@ fn main() -> Result<()> {
     conn.map_window(state.win)?;
     conn.flush()?;
 
+    let mut coordinate: Option<Coordinate> = None;
+
     loop {
         let event = conn.wait_for_event()?;
 
-        mevi_event!(event);
-
         match event {
             Event::Expose(e) => {
-                conn.copy_area(
-                    state.pm,
-                    state.win,
-                    state.gc,
-                    e.x as _,
-                    e.y as _,
-                    e.x as _,
-                    e.y as _,
-                    e.width.min(iw),
-                    e.height.min(ih),
-                )?;
+                mevi_event!(event);
+
+                let (x, y) = window::center_coordinates(conn, state.win, iw, ih)?;
+
+                conn.copy_area(state.pm, state.win, state.gc, 0, 0, x, y, iw, ih)?;
+
                 if e.count == 0 {
                     conn.flush()?;
                 }
+                // coordinate = Some(Coordinate { x, y })
             }
             Event::ClientMessage(evt) => {
                 let data = evt.data.as_data32();

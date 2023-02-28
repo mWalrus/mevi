@@ -2,8 +2,8 @@ use anyhow::Result;
 use x11rb::connection::Connection;
 use x11rb::image::Image;
 use x11rb::protocol::xproto::{
-    BackingStore, ConnectionExt, CreateGCAux, CreateWindowAux, EventMask, FillStyle, Gcontext,
-    Gravity, Pixmap, PropMode, Screen, Window, WindowClass,
+    ConnectionExt, CreateGCAux, CreateWindowAux, EventMask, FillStyle, Gcontext, Pixmap, PropMode,
+    Screen, Window, WindowClass,
 };
 use x11rb::wrapper::ConnectionExt as _;
 
@@ -149,8 +149,8 @@ pub fn init_window(
     ))
 }
 
-pub fn center_coordinates<'c, C: Connection>(
-    conn: &'c C,
+pub fn center_coordinates<C: Connection>(
+    conn: &C,
     win: Window,
     iw: u16,
     ih: u16,

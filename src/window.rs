@@ -1,3 +1,5 @@
+use std::fmt::Display;
+
 use anyhow::Result;
 use x11rb::connection::Connection;
 use x11rb::image::Image;
@@ -149,22 +151,56 @@ pub fn init_window(
     ))
 }
 
-pub fn center_coordinates<C: Connection>(
-    conn: &C,
-    win: Window,
-    iw: u16,
-    ih: u16,
-) -> Result<(i16, i16, u16, u16)> {
+pub struct DrawInfo {
+    pub ix: i16,
+    pub iy: i16,
+    pub wx: i16,
+    pub wy: i16,
+    pub ww: u16,
+    pub wh: u16,
+    pub w: u16,
+    pub h: u16,
+}
+
+impl Display for DrawInfo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "draw info: (ix: {}, iy: {}, wx: {}, wy: {}, w: {}, h: {})",
+            self.ix, self.iy, self.wx, self.wy, self.w, self.h
+        )
+    }
+}
+
+pub fn calc_draw_info<C: Connection>(conn: &C, win: Window, iw: u16, ih: u16) -> Result<DrawInfo> {
     let attrs = conn.get_geometry(win)?.reply()?;
-    mevi_info!("Image dimensions: {iw}x{ih}");
-    let (cx, cy) = (attrs.width as i16 / 2, attrs.height as i16 / 2);
-    mevi_info!(
-        "Center of window with size {}x{}: x -> {cx}, y -> {cy}",
-        attrs.width,
-        attrs.height
-    );
+    let (ww, wh) = (attrs.width, attrs.height);
+    let (cx, cy) = (ww as i16 / 2, wh as i16 / 2);
+
     let ix = cx - (iw as i16 / 2);
     let iy = cy - (ih as i16 / 2);
-    mevi_info!("Position to start drawing from: x -> {ix}, y -> {iy}");
-    Ok((ix, iy, attrs.width, attrs.height))
+
+    let (ix, wx, w) = if iw > ww {
+        (ix.abs(), 0, ww)
+    } else {
+        (0, ix, iw)
+    };
+    let (iy, wy, h) = if ih > wh {
+        (iy.abs(), 0, wh)
+    } else {
+        (0, iy, ih)
+    };
+
+    let info = DrawInfo {
+        ix,
+        iy,
+        wx,
+        wy,
+        ww,
+        wh,
+        w,
+        h,
+    };
+    mevi_info!("{info}");
+    Ok(info)
 }

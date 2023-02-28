@@ -80,9 +80,15 @@ fn main() -> Result<()> {
             Event::Expose(e) if e.count == 0 => {
                 mevi_event!(event);
 
-                let (x, y, ww, wh) = window::center_coordinates(conn, state.window, iw, ih)?;
+                let info = window::calc_draw_info(conn, state.window, iw, ih)?;
 
-                conn.create_pixmap(screen.root_depth, state.buffer, screen.root, ww, wh)?;
+                conn.create_pixmap(
+                    screen.root_depth,
+                    state.buffer,
+                    screen.root,
+                    info.ww,
+                    info.wh,
+                )?;
 
                 conn.poly_fill_rectangle(
                     state.buffer,
@@ -90,8 +96,8 @@ fn main() -> Result<()> {
                     &[Rectangle {
                         x: 0,
                         y: 0,
-                        width: ww,
-                        height: wh,
+                        width: info.ww,
+                        height: info.wh,
                     }],
                 )?;
 
@@ -99,12 +105,12 @@ fn main() -> Result<()> {
                     state.image_pixmap,
                     state.buffer,
                     state.buffer_gc,
-                    0,
-                    0,
-                    x,
-                    y,
-                    iw,
-                    ih,
+                    info.ix,
+                    info.iy,
+                    info.wx,
+                    info.wy,
+                    info.w,
+                    info.h,
                 )?;
 
                 conn.copy_area(
@@ -115,8 +121,8 @@ fn main() -> Result<()> {
                     0,
                     0,
                     0,
-                    ww,
-                    wh,
+                    info.ww,
+                    info.wh,
                 )?;
 
                 conn.free_pixmap(state.buffer)?;

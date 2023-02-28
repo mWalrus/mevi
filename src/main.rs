@@ -48,11 +48,13 @@ fn main() -> Result<()> {
 
     let img = img::load_image(&CLI.path)?;
     let bg_img = img::get_bg_image()?;
+
     let foreign_layout = PixelLayout::new(
         ColorComponent::new(8, 0)?,
         ColorComponent::new(8, 8)?,
         ColorComponent::new(8, 16)?,
     );
+
     let pixel_layout = screen::check_visual(screen, screen.root_visual);
 
     let img = img.reencode(foreign_layout, pixel_layout, conn.setup())?;
@@ -71,34 +73,61 @@ fn main() -> Result<()> {
         CLI.path.to_string_lossy().to_string(),
     )?;
 
-    conn.map_window(state.win)?;
-    conn.flush()?;
-
     loop {
         let event = conn.wait_for_event()?;
 
-        mevi_event!(event);
-
         match event {
-            Event::Expose(e) => {
-                conn.copy_area(
-                    state.pm,
-                    state.win,
-                    state.gc,
-                    e.x as _,
-                    e.y as _,
-                    e.x as _,
-                    e.y as _,
-                    e.width.min(iw),
-                    e.height.min(ih),
+            Event::Expose(e) if e.count == 0 => {
+                mevi_event!(event);
+
+                let (x, y, ww, wh) = window::center_coordinates(conn, state.window, iw, ih)?;
+
+                conn.create_pixmap(screen.root_depth, state.buffer, screen.root, ww, wh)?;
+
+                conn.poly_fill_rectangle(
+                    state.buffer,
+                    state.tile_gc,
+                    &[Rectangle {
+                        x: 0,
+                        y: 0,
+                        width: ww,
+                        height: wh,
+                    }],
                 )?;
-                if e.count == 0 {
-                    conn.flush()?;
-                }
+
+                conn.copy_area(
+                    state.image_pixmap,
+                    state.buffer,
+                    state.buffer_gc,
+                    0,
+                    0,
+                    x,
+                    y,
+                    iw,
+                    ih,
+                )?;
+
+                conn.copy_area(
+                    state.buffer,
+                    state.window,
+                    state.buffer_gc,
+                    0,
+                    0,
+                    0,
+                    0,
+                    ww,
+                    wh,
+                )?;
+
+                conn.free_pixmap(state.buffer)?;
+                conn.flush()?;
+                // coordinate = Some(Coordinate { x, y })
             }
             Event::ClientMessage(evt) => {
                 let data = evt.data.as_data32();
-                if evt.format == 32 && evt.window == state.win && data[0] == atoms.WM_DELETE_WINDOW
+                if evt.format == 32
+                    && evt.window == state.window
+                    && data[0] == atoms.WM_DELETE_WINDOW
                 {
                     mevi_info!("Exit signal received");
                     break;

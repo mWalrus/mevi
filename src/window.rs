@@ -2,28 +2,37 @@ use anyhow::Result;
 use x11rb::connection::Connection;
 use x11rb::image::Image;
 use x11rb::protocol::xproto::{
-    BackingStore, ConnectionExt, CreateGCAux, CreateWindowAux, EventMask, Gcontext, Gravity,
-    Pixmap, PropMode, Screen, Window, WindowClass,
+    BackingStore, ConnectionExt, CreateGCAux, CreateWindowAux, EventMask, FillStyle, Gcontext,
+    Gravity, Pixmap, PropMode, Screen, Window, WindowClass,
 };
 use x11rb::wrapper::ConnectionExt as _;
 
 use crate::{Atoms, INITIAL_SIZE, TITLE};
 
 pub struct WindowState {
-    pub win: Window,
-    pub pm: Pixmap,
-    pub gc: Gcontext,
+    pub window: Window,
+    pub buffer: Pixmap,
+    pub buffer_gc: Gcontext,
+    pub image_pixmap: Pixmap,
+    pub tile_gc: Gcontext,
 }
 
 impl WindowState {
-    fn new(win: Window, pm: Pixmap, gc: Gcontext) -> Self {
-        Self { win, pm, gc }
+    fn new(
+        window: Window,
+        buffer: Pixmap,
+        buffer_gc: Gcontext,
+        image_pixmap: Pixmap,
+        tile_gc: Gcontext,
+    ) -> Self {
+        Self {
+            window,
+            buffer,
+            buffer_gc,
+            image_pixmap,
+            tile_gc,
+        }
     }
-}
-
-pub struct Coordinate {
-    pub x: i16,
-    pub y: i16,
 }
 
 pub fn init_window(
@@ -35,25 +44,60 @@ pub fn init_window(
     file_path: String,
 ) -> Result<WindowState> {
     let win_id = conn.generate_id()?;
+    let buffer = conn.generate_id()?;
+    let buffer_gc = conn.generate_id()?;
+    let background_pixmap = conn.generate_id()?;
+    let image_pixmap = conn.generate_id()?;
+    let background_gc = conn.generate_id()?;
+    let tile_gc = conn.generate_id()?;
 
     let title = format!("{TITLE} - {file_path}");
 
-    let (img_pm, img_gc) = create_pixmap_and_gc(conn, screen, img.width(), img.height())?;
-    let (bg_img_pm, bg_img_gc) =
-        create_pixmap_and_gc(conn, screen, bg_img.width(), bg_img.height())?;
+    conn.create_pixmap(
+        screen.root_depth,
+        background_pixmap,
+        screen.root,
+        bg_img.width(),
+        bg_img.height(),
+    )?;
 
-    bg_img.put(conn, bg_img_pm, bg_img_gc, 0, 0)?;
-    conn.free_gc(bg_img_gc)?;
+    conn.create_gc(
+        background_gc,
+        screen.root,
+        &CreateGCAux::default().graphics_exposures(0),
+    )?;
 
-    img.put(conn, img_pm, img_gc, 0, 0)?;
+    bg_img.put(conn, background_pixmap, background_gc, 0, 0)?;
 
-    let win_aux = CreateWindowAux::default()
-        .event_mask(EventMask::EXPOSURE | EventMask::STRUCTURE_NOTIFY)
-        .bit_gravity(Gravity::CENTER)
-        .backing_store(BackingStore::NOT_USEFUL)
-        .save_under(0)
-        .override_redirect(0)
-        .background_pixmap(bg_img_pm);
+    conn.create_gc(
+        tile_gc,
+        screen.root,
+        &CreateGCAux::default()
+            .fill_style(Some(FillStyle::TILED))
+            .tile(background_pixmap),
+    )?;
+
+    conn.free_gc(background_gc)?;
+    conn.free_pixmap(background_pixmap)?;
+
+    conn.create_gc(
+        buffer_gc,
+        screen.root,
+        &CreateGCAux::default().graphics_exposures(0),
+    )?;
+
+    conn.create_pixmap(
+        screen.root_depth,
+        image_pixmap,
+        screen.root,
+        img.width(),
+        img.height(),
+    )?;
+
+    img.put(conn, image_pixmap, buffer_gc, 0, 0)?;
+
+    let win_aux =
+        CreateWindowAux::default().event_mask(EventMask::EXPOSURE | EventMask::STRUCTURE_NOTIFY);
 
     conn.create_window(
         screen.root_depth,
@@ -68,8 +112,6 @@ pub fn init_window(
         0,
         &win_aux,
     )?;
-
-    conn.free_pixmap(bg_img_pm)?;
 
     conn.change_property8(
         PropMode::REPLACE,
@@ -95,22 +137,16 @@ pub fn init_window(
         &[atoms.WM_DELETE_WINDOW],
     )?;
 
-    Ok(WindowState::new(win_id, img_pm, img_gc))
-}
+    conn.map_window(win_id)?;
+    conn.flush()?;
 
-fn create_pixmap_and_gc<'c, C: Connection>(
-    conn: &'c C,
-    s: &Screen,
-    w: u16,
-    h: u16,
-) -> Result<(u32, u32)> {
-    let pm = conn.generate_id()?;
-    let gc = conn.generate_id()?;
-
-    conn.create_gc(gc, s.root, &CreateGCAux::default().graphics_exposures(0))?;
-    conn.create_pixmap(s.root_depth, pm, s.root, w, h)?;
-
-    Ok((pm, gc))
+    Ok(WindowState::new(
+        win_id,
+        buffer,
+        buffer_gc,
+        image_pixmap,
+        tile_gc,
+    ))
 }
 
 pub fn center_coordinates<'c, C: Connection>(
@@ -118,7 +154,7 @@ pub fn center_coordinates<'c, C: Connection>(
     win: Window,
     iw: u16,
     ih: u16,
-) -> Result<(i16, i16)> {
+) -> Result<(i16, i16, u16, u16)> {
     let attrs = conn.get_geometry(win)?.reply()?;
     mevi_info!("Image dimensions: {iw}x{ih}");
     let (cx, cy) = (attrs.width as i16 / 2, attrs.height as i16 / 2);
@@ -130,5 +166,5 @@ pub fn center_coordinates<'c, C: Connection>(
     let ix = cx - (iw as i16 / 2);
     let iy = cy - (ih as i16 / 2);
     mevi_info!("Position to start drawing from: x -> {ix}, y -> {iy}");
-    Ok((ix, iy))
+    Ok((ix, iy, attrs.width, attrs.height))
 }

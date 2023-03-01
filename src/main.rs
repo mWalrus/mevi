@@ -46,7 +46,7 @@ fn main() -> Result<()> {
 
     let screen = &conn.setup().roots[screen_num];
 
-    let img = img::load_image(
+    let image_wrapper = img::load_image(
         &CLI.path,
         screen.width_in_pixels as u32,
         screen.height_in_pixels as u32,
@@ -61,8 +61,9 @@ fn main() -> Result<()> {
 
     let pixel_layout = screen::check_visual(screen, screen.root_visual);
 
-    let img = img.reencode(foreign_layout, pixel_layout, conn.setup())?;
-    let (iw, ih) = (img.width(), img.height());
+    let img = image_wrapper
+        .image
+        .reencode(foreign_layout, pixel_layout, conn.setup())?;
 
     let bg_img = bg_img.reencode(foreign_layout, pixel_layout, conn.setup())?;
 
@@ -84,7 +85,12 @@ fn main() -> Result<()> {
             Event::Expose(e) if e.count == 0 => {
                 mevi_event!(event);
 
-                let info = window::calc_draw_info(conn, state.window, iw, ih)?;
+                let info = window::calc_draw_info(
+                    conn,
+                    state.window,
+                    image_wrapper.width,
+                    image_wrapper.height,
+                )?;
 
                 conn.create_pixmap(
                     screen.root_depth,

@@ -271,16 +271,11 @@ impl<'a> Mevi<'a> {
                 self.font_gc,
                 0,
                 11,
-                self.image_info.path.as_bytes(),
-            )?;
-            self.conn.image_text8(
-                self.buffer,
-                self.font_gc,
-                0,
-                24,
                 format!(
-                    "dimensions: {}x{}",
-                    self.image_info.original_width, self.image_info.original_height
+                    "path: {} | dimensions: {}x{}",
+                    self.image_info.path,
+                    self.image_info.original_width,
+                    self.image_info.original_height
                 )
                 .as_bytes(),
             )?;

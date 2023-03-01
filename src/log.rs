@@ -1,6 +1,6 @@
 macro_rules! __mevi_dbg {
     ($type:expr, $($arg:tt)*) => {{
-        if *$crate::SHOULD_PRINT_DEBUG {
+        if $crate::CLI.debug {
             use ::colored::Colorize;
             let t = match $type {
                 $crate::LogType::Event => "[Event]".bold().blue(),

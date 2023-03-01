@@ -6,4 +6,6 @@ pub struct Cli {
     pub path: PathBuf,
     #[arg(long, required = false)]
     pub debug: bool,
+    #[arg(long, short, required = false)]
+    pub info: bool,
 }

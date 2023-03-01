@@ -47,7 +47,13 @@ fn main() -> Result<()> {
 
     let atoms = Atoms::new(&conn)?.reply()?;
 
-    let mevi = Mevi::init(&conn, screen, atoms, &image, orig_w, orig_h, &bg_img)?;
+    let mevi = match Mevi::init(&conn, screen, atoms, &image, orig_w, orig_h, &bg_img) {
+        Ok(mevi) => mevi,
+        Err(e) => {
+            mevi_err!("{e:?}");
+            std::process::exit(1);
+        }
+    };
 
     mevi.run()?;
 

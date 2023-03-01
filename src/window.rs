@@ -46,10 +46,10 @@ pub fn init_window(
     file_path: String,
 ) -> Result<WindowState> {
     let win_id = conn.generate_id()?;
+    let image_pixmap = conn.generate_id()?;
     let buffer = conn.generate_id()?;
     let buffer_gc = conn.generate_id()?;
     let background_pixmap = conn.generate_id()?;
-    let image_pixmap = conn.generate_id()?;
     let background_gc = conn.generate_id()?;
     let tile_gc = conn.generate_id()?;
 
@@ -201,6 +201,8 @@ pub fn calc_draw_info<C: Connection>(conn: &C, win: Window, iw: u16, ih: u16) ->
         w,
         h,
     };
+
     mevi_info!("{info}");
+
     Ok(info)
 }

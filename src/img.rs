@@ -6,7 +6,6 @@ use x11rb::image::{BitsPerPixel, Image, ImageOrder, ScanlinePad};
 pub fn load_image(fp: &PathBuf, sw: u32, sh: u32) -> Result<Image<'static>> {
     let mut img = image::open(fp)?;
 
-    // resize to fit screen if needed
     if img.width() > sw || img.height() > sh {
         img = img.resize(sw, sh, FilterType::Nearest)
     }

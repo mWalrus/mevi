@@ -11,7 +11,7 @@ pub fn check_visual(screen: &Screen, id: Visualid) -> PixelLayout {
     let (depth, visual_type) = match visual_info {
         Some(info) => info,
         None => {
-            eprintln!("Did not find the root visual's description");
+            mevi_err!("Did not find the root visual's description");
             std::process::exit(1);
         }
     };
@@ -19,13 +19,18 @@ pub fn check_visual(screen: &Screen, id: Visualid) -> PixelLayout {
     match visual_type.class {
         VisualClass::TRUE_COLOR | VisualClass::DIRECT_COLOR => {}
         _ => {
-            eprintln!("The root visual is not true or direct color, but {visual_type:?}");
+            mevi_err!("The root visual is not true or direct color, but {visual_type:?}");
             std::process::exit(1);
         }
     };
 
-    let result = PixelLayout::from_visual_type(*visual_type)
-        .expect("The server sent a malformed visual type");
-    assert_eq!(result.depth(), depth);
-    result
+    let pixel_layout = match PixelLayout::from_visual_type(*visual_type) {
+        Ok(pl) => pl,
+        Err(e) => {
+            mevi_err!("The server sent a malformed visual type: {e:?}");
+            std::process::exit(1);
+        }
+    };
+    assert_eq!(pixel_layout.depth(), depth);
+    pixel_layout
 }

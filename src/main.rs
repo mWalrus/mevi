@@ -131,7 +131,6 @@ fn main() -> Result<()> {
 
                 conn.free_pixmap(state.buffer)?;
                 conn.flush()?;
-                // coordinate = Some(Coordinate { x, y })
             }
             Event::ClientMessage(evt) => {
                 let data = evt.data.as_data32();
@@ -144,7 +143,7 @@ fn main() -> Result<()> {
                 }
             }
             Event::Error(e) => mevi_err!("Received error: {e:?}"),
-            _ => {} // ev => println!("Got an unknown event: {ev:?}"),
+            _ => {}
         }
     }
 

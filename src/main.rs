@@ -46,7 +46,11 @@ fn main() -> Result<()> {
 
     let screen = &conn.setup().roots[screen_num];
 
-    let img = img::load_image(&CLI.path)?;
+    let img = img::load_image(
+        &CLI.path,
+        screen.width_in_pixels as u32,
+        screen.height_in_pixels as u32,
+    )?;
     let bg_img = img::get_bg_image()?;
 
     let foreign_layout = PixelLayout::new(

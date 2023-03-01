@@ -1,18 +1,26 @@
 use anyhow::Result;
+use image::imageops::FilterType;
 use std::{borrow::Cow, path::PathBuf};
 use x11rb::image::{BitsPerPixel, Image, ImageOrder, ScanlinePad};
 
-pub fn load_image(fp: &PathBuf) -> Result<Image<'static>> {
-    let img_buf = image::open(fp)?.into_rgb8();
+pub fn load_image(fp: &PathBuf, sw: u32, sh: u32) -> Result<Image<'static>> {
+    let mut img = image::open(fp)?;
+
+    // resize to fit screen if needed
+    if img.width() > sw || img.height() > sh {
+        img = img.resize(sw, sh, FilterType::Nearest)
+    }
+
+    let img_buffer = img.into_rgb8();
 
     let img = Image::new(
-        img_buf.width() as u16,
-        img_buf.height() as u16,
+        img_buffer.width() as u16,
+        img_buffer.height() as u16,
         ScanlinePad::Pad8,
         24,
         BitsPerPixel::B24,
         ImageOrder::LsbFirst,
-        Cow::from(img_buf.into_vec()),
+        Cow::from(img_buffer.into_vec()),
     )?;
 
     Ok(img)

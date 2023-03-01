@@ -17,6 +17,7 @@ pub struct WindowState {
     pub buffer_gc: Gcontext,
     pub image_pixmap: Pixmap,
     pub tile_gc: Gcontext,
+    pub font_gc: Gcontext,
 }
 
 impl WindowState {
@@ -26,6 +27,7 @@ impl WindowState {
         buffer_gc: Gcontext,
         image_pixmap: Pixmap,
         tile_gc: Gcontext,
+        font_gc: Gcontext,
     ) -> Self {
         Self {
             window,
@@ -33,6 +35,7 @@ impl WindowState {
             buffer_gc,
             image_pixmap,
             tile_gc,
+            font_gc,
         }
     }
 }
@@ -52,8 +55,26 @@ pub fn init_window(
     let background_pixmap = conn.generate_id()?;
     let background_gc = conn.generate_id()?;
     let tile_gc = conn.generate_id()?;
+    let font_gc = conn.generate_id()?;
+    let font = conn.generate_id()?;
 
     let title = format!("{TITLE} - {file_path}");
+
+    conn.open_font(
+        font,
+        "-misc-hack-medium-i-normal--0-0-0-0-m-0-ascii-0".as_bytes(),
+    )?;
+
+    conn.create_gc(
+        font_gc,
+        screen.root,
+        &CreateGCAux::default()
+            .font(font)
+            .foreground(screen.black_pixel)
+            .background(screen.white_pixel),
+    )?;
+
+    conn.close_font(font)?;
 
     conn.create_pixmap(
         screen.root_depth,
@@ -148,6 +169,7 @@ pub fn init_window(
         buffer_gc,
         image_pixmap,
         tile_gc,
+        font_gc,
     ))
 }
 

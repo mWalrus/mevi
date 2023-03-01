@@ -123,6 +123,14 @@ fn main() -> Result<()> {
                     info.h,
                 )?;
 
+                conn.image_text8(
+                    state.buffer,
+                    state.font_gc,
+                    0,
+                    15,
+                    image_wrapper.path.as_bytes(),
+                )?;
+
                 conn.copy_area(
                     state.buffer,
                     state.window,

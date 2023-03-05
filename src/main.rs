@@ -55,7 +55,7 @@ fn main() -> Result<()> {
         }
     };
 
-    mevi.run()?;
+    mevi.run_event_handler()?;
 
     Ok(())
 }

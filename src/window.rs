@@ -5,8 +5,8 @@ use std::fmt::Display;
 use x11rb::connection::Connection;
 use x11rb::image::{ColorComponent, Image, PixelLayout};
 use x11rb::protocol::xproto::{
-    ConnectionExt, CreateGCAux, CreateWindowAux, EventMask, ExposeEvent, FillStyle, Gcontext,
-    Pixmap, PropMode, Rectangle, Screen, Window, WindowClass,
+    ConnectionExt, CreateGCAux, CreateWindowAux, EventMask, FillStyle, Gcontext, Pixmap, PropMode,
+    Rectangle, Screen, Window, WindowClass,
 };
 use x11rb::protocol::Event;
 use x11rb::rust_connection::RustConnection;
@@ -16,22 +16,16 @@ pub static INITIAL_SIZE: (u16, u16) = (600, 800);
 pub static TITLE: &str = "mevi";
 
 pub struct DrawInfo {
-    pub ix: i16,
-    pub iy: i16,
-    pub wx: i16,
-    pub wy: i16,
-    pub ww: u16,
-    pub wh: u16,
-    pub w: u16,
-    pub h: u16,
+    pub child: Rectangle,
+    pub parent: Rectangle,
 }
 
 impl Display for DrawInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "draw info: (ix: {}, iy: {}, wx: {}, wy: {}, w: {}, h: {})",
-            self.ix, self.iy, self.wx, self.wy, self.w, self.h
+            "draw info: (parent: {:x?}, child: {:x?})",
+            self.parent, self.child
         )
     }
 }
@@ -55,6 +49,7 @@ pub struct Mevi<'a> {
     image_info: ImageInfo,
     tile_gc: Gcontext,
     font_gc: Gcontext,
+    show_menu: bool,
 }
 
 impl<'a> Mevi<'a> {
@@ -201,16 +196,18 @@ impl<'a> Mevi<'a> {
             image_info,
             tile_gc,
             font_gc,
+            show_menu: false,
         })
     }
 
-    pub fn run(&self) -> Result<()> {
+    pub fn run_event_handler(&self) -> Result<()> {
         loop {
             let event = self.conn.wait_for_event()?;
 
             match event {
                 Event::Expose(e) if e.count == 0 => {
-                    self.draw(e)?;
+                    mevi_event!(e);
+                    self.draw()?;
                 }
                 Event::ClientMessage(evt) => {
                     let data = evt.data.as_data32();
@@ -229,17 +226,15 @@ impl<'a> Mevi<'a> {
         Ok(())
     }
 
-    fn draw(&self, e: ExposeEvent) -> Result<()> {
-        mevi_event!(e);
-
-        let info = self.calc_draw_info()?;
+    fn draw(&self) -> Result<()> {
+        let info = self.calc_image_draw_info()?;
 
         self.conn.create_pixmap(
             self.screen.root_depth,
             self.buffer,
             self.screen.root,
-            info.ww,
-            info.wh,
+            info.parent.width,
+            info.parent.height,
         )?;
 
         self.conn.poly_fill_rectangle(
@@ -248,8 +243,8 @@ impl<'a> Mevi<'a> {
             &[Rectangle {
                 x: 0,
                 y: 0,
-                width: info.ww,
-                height: info.wh,
+                width: info.parent.width,
+                height: info.parent.height,
             }],
         )?;
 
@@ -257,12 +252,12 @@ impl<'a> Mevi<'a> {
             self.image_pixmap,
             self.buffer,
             self.buffer_gc,
-            info.ix,
-            info.iy,
-            info.wx,
-            info.wy,
-            info.w,
-            info.h,
+            info.child.x,
+            info.child.y,
+            info.parent.x,
+            info.parent.y,
+            info.child.width,
+            info.child.height,
         )?;
 
         if CLI.info || CLI.debug {
@@ -289,8 +284,8 @@ impl<'a> Mevi<'a> {
             0,
             0,
             0,
-            info.ww,
-            info.wh,
+            info.parent.width,
+            info.parent.height,
         )?;
 
         self.conn.free_pixmap(self.buffer)?;
@@ -318,34 +313,38 @@ impl<'a> Mevi<'a> {
         Ok((img, bg))
     }
 
-    fn calc_draw_info(&self) -> Result<DrawInfo> {
+    fn calc_image_draw_info(&self) -> Result<DrawInfo> {
         let attrs = self.conn.get_geometry(self.window)?.reply()?;
-        let (ww, wh) = (attrs.width, attrs.height);
-        let (cx, cy) = (ww as i16 / 2, wh as i16 / 2);
+        let (parent_w, parent_h) = (attrs.width, attrs.height);
+        let (cx, cy) = (parent_w as i16 / 2, parent_h as i16 / 2);
 
-        let ix = cx - (self.image_info.width as i16 / 2);
-        let iy = cy - (self.image_info.height as i16 / 2);
+        let child_x = cx - (self.image_info.width as i16 / 2);
+        let child_y = cy - (self.image_info.height as i16 / 2);
 
-        let (ix, wx, w) = if self.image_info.width > ww {
-            (ix.abs(), 0, ww)
+        let (child_x, parent_x, child_w) = if self.image_info.width > parent_w {
+            (child_x.abs(), 0, parent_w)
         } else {
-            (0, ix, self.image_info.width)
+            (0, child_x, self.image_info.width)
         };
-        let (iy, wy, h) = if self.image_info.height > wh {
-            (iy.abs(), 0, wh)
+        let (child_y, parent_y, child_h) = if self.image_info.height > parent_h {
+            (child_y.abs(), 0, parent_h)
         } else {
-            (0, iy, self.image_info.height)
+            (0, child_y, self.image_info.height)
         };
 
         let info = DrawInfo {
-            ix,
-            iy,
-            wx,
-            wy,
-            ww,
-            wh,
-            w,
-            h,
+            child: Rectangle {
+                x: child_x,
+                y: child_y,
+                width: child_w,
+                height: child_h,
+            },
+            parent: Rectangle {
+                x: parent_x,
+                y: parent_y,
+                width: parent_w,
+                height: parent_h,
+            },
         };
 
         mevi_info!("{info}");

@@ -2,6 +2,7 @@ mod cli;
 mod img;
 #[macro_use]
 mod log;
+mod menu;
 mod screen;
 mod window;
 
@@ -47,15 +48,13 @@ fn main() -> Result<()> {
 
     let atoms = Atoms::new(&conn)?.reply()?;
 
-    let mevi = match Mevi::init(&conn, screen, atoms, &image, orig_w, orig_h, &bg_img) {
-        Ok(mevi) => mevi,
+    match Mevi::init(&conn, screen, atoms, &image, orig_w, orig_h, &bg_img) {
+        Ok(mut mevi) => mevi.run_event_handler()?,
         Err(e) => {
             mevi_err!("{e:?}");
             std::process::exit(1);
         }
     };
-
-    mevi.run_event_handler()?;
 
     Ok(())
 }

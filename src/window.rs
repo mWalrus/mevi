@@ -1,3 +1,4 @@
+use crate::menu::Menu;
 use crate::{screen, Atoms, CLI};
 use anyhow::Result;
 use std::borrow::Cow;
@@ -5,8 +6,8 @@ use std::fmt::Display;
 use x11rb::connection::Connection;
 use x11rb::image::{ColorComponent, Image, PixelLayout};
 use x11rb::protocol::xproto::{
-    ConnectionExt, CreateGCAux, CreateWindowAux, EventMask, FillStyle, Gcontext, Pixmap, PropMode,
-    Rectangle, Screen, Window, WindowClass,
+    ConnectionExt, CreateGCAux, CreateWindowAux, EventMask, FillStyle, Gcontext, LineStyle, Pixmap,
+    PropMode, Rectangle, Screen, Window, WindowClass,
 };
 use x11rb::protocol::Event;
 use x11rb::rust_connection::RustConnection;
@@ -24,7 +25,7 @@ impl Display for DrawInfo {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "draw info: (parent: {:x?}, child: {:x?})",
+            "draw info: (parent: {:?}, child: {:?})",
             self.parent, self.child
         )
     }
@@ -49,7 +50,11 @@ pub struct Mevi<'a> {
     image_info: ImageInfo,
     tile_gc: Gcontext,
     font_gc: Gcontext,
-    show_menu: bool,
+    font_gc_selected: Gcontext,
+    needs_redraw: bool,
+    menu: Menu,
+    pointer_pos: (i16, i16),
+    show_file_info: bool,
 }
 
 impl<'a> Mevi<'a> {
@@ -70,6 +75,7 @@ impl<'a> Mevi<'a> {
         let background_gc = conn.generate_id()?;
         let tile_gc = conn.generate_id()?;
         let font_gc = conn.generate_id()?;
+        let font_gc_selected = conn.generate_id()?;
         let font = conn.generate_id()?;
 
         let path = CLI.path.to_string_lossy().to_string();
@@ -84,6 +90,15 @@ impl<'a> Mevi<'a> {
                 .font(font)
                 .foreground(screen.black_pixel)
                 .background(screen.white_pixel),
+        )?;
+
+        conn.create_gc(
+            font_gc_selected,
+            screen.root,
+            &CreateGCAux::default()
+                .font(font)
+                .foreground(screen.white_pixel)
+                .background(screen.black_pixel),
         )?;
 
         conn.close_font(font)?;
@@ -141,8 +156,13 @@ impl<'a> Mevi<'a> {
 
         img.put(conn, image_pixmap, buffer_gc, 0, 0)?;
 
-        let win_aux = CreateWindowAux::default()
-            .event_mask(EventMask::EXPOSURE | EventMask::STRUCTURE_NOTIFY);
+        let win_aux = CreateWindowAux::default().event_mask(
+            EventMask::EXPOSURE
+                | EventMask::STRUCTURE_NOTIFY
+                | EventMask::KEY_RELEASE
+                | EventMask::BUTTON_PRESS
+                | EventMask::POINTER_MOTION,
+        );
 
         conn.create_window(
             screen.root_depth,
@@ -185,6 +205,8 @@ impl<'a> Mevi<'a> {
         conn.map_window(window)?;
         conn.flush()?;
 
+        let menu = Menu::create(conn, screen, window)?;
+
         Ok(Self {
             atoms,
             conn,
@@ -196,18 +218,47 @@ impl<'a> Mevi<'a> {
             image_info,
             tile_gc,
             font_gc,
-            show_menu: false,
+            font_gc_selected,
+            needs_redraw: false,
+            menu,
+            pointer_pos: (0, 0),
+            show_file_info: CLI.info,
         })
     }
 
-    pub fn run_event_handler(&self) -> Result<()> {
+    pub fn run_event_handler(&mut self) -> Result<()> {
         loop {
             let event = self.conn.wait_for_event()?;
 
             match event {
                 Event::Expose(e) if e.count == 0 => {
                     mevi_event!(e);
-                    self.draw()?;
+                    self.needs_redraw = true;
+                }
+                Event::KeyRelease(e) => {
+                    mevi_event!(e);
+                    if e.detail == 31 {
+                        self.show_file_info = !self.show_file_info;
+                        self.needs_redraw = true;
+                    }
+                }
+                Event::ButtonPress(e) => {
+                    mevi_event!(e);
+                    if e.detail == 3 && !self.menu.visible {
+                        self.menu.map_window(self.conn, e.event_x, e.event_y)?;
+                        // draw once when we map
+                        self.try_draw_menu()?;
+                        self.needs_redraw = true;
+                    } else if (e.detail == 1 || e.detail == 3) && self.menu.visible {
+                        self.menu.unmap_window(self.conn)?;
+                    }
+                }
+                Event::MotionNotify(e) => {
+                    // very verbose
+                    if self.menu.has_pointer_within(e.event_x, e.event_y) {
+                        self.pointer_pos = (e.event_x, e.event_y);
+                        self.needs_redraw = true;
+                    }
                 }
                 Event::ClientMessage(evt) => {
                     let data = evt.data.as_data32();
@@ -222,11 +273,31 @@ impl<'a> Mevi<'a> {
                 Event::Error(e) => mevi_err!("Received error: {e:?}"),
                 _ => {}
             }
+            if self.needs_redraw {
+                self.draw_image()?;
+                self.try_draw_menu()?;
+                self.needs_redraw = false;
+            }
         }
         Ok(())
     }
 
-    fn draw(&self) -> Result<()> {
+    fn try_draw_menu(&self) -> Result<()> {
+        if !self.menu.visible {
+            return Ok(());
+        }
+
+        self.menu.draw(
+            self.conn,
+            self.pointer_pos,
+            self.font_gc,
+            self.font_gc_selected,
+        )?;
+
+        Ok(())
+    }
+
+    fn draw_image(&self) -> Result<()> {
         let info = self.calc_image_draw_info()?;
 
         self.conn.create_pixmap(
@@ -260,21 +331,7 @@ impl<'a> Mevi<'a> {
             info.child.height,
         )?;
 
-        if CLI.info || CLI.debug {
-            self.conn.image_text8(
-                self.buffer,
-                self.font_gc,
-                0,
-                11,
-                format!(
-                    "path: {} | dimensions: {}x{}",
-                    self.image_info.path,
-                    self.image_info.original_width,
-                    self.image_info.original_height
-                )
-                .as_bytes(),
-            )?;
-        }
+        self.draw_file_info()?;
 
         self.conn.copy_area(
             self.buffer,
@@ -290,6 +347,25 @@ impl<'a> Mevi<'a> {
 
         self.conn.free_pixmap(self.buffer)?;
         self.conn.flush()?;
+        Ok(())
+    }
+
+    fn draw_file_info(&self) -> Result<()> {
+        if self.show_file_info {
+            self.conn.image_text8(
+                self.buffer,
+                self.font_gc,
+                0,
+                11,
+                format!(
+                    "path: {} | dimensions: {}x{}",
+                    self.image_info.path,
+                    self.image_info.original_width,
+                    self.image_info.original_height
+                )
+                .as_bytes(),
+            )?;
+        };
         Ok(())
     }
 

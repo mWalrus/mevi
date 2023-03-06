@@ -167,6 +167,7 @@ impl Menu {
         self.rect.x = x;
         self.rect.y = y;
         self.visible = true;
+        self.selected = Some(0);
 
         self.draw(conn)?;
 

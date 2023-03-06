@@ -1,4 +1,4 @@
-use crate::menu::Menu;
+use crate::menu::{Menu, MenuAction};
 use crate::{screen, Atoms, CLI};
 use anyhow::Result;
 use std::borrow::Cow;
@@ -6,13 +6,14 @@ use std::fmt::Display;
 use x11rb::connection::Connection;
 use x11rb::image::{ColorComponent, Image, PixelLayout};
 use x11rb::protocol::xproto::{
-    ConnectionExt, CreateGCAux, CreateWindowAux, EventMask, FillStyle, Gcontext, LineStyle, Pixmap,
-    PropMode, Rectangle, Screen, Window, WindowClass,
+    ConnectionExt, CreateGCAux, CreateWindowAux, EventMask, FillStyle, Gcontext, Pixmap, PropMode,
+    Rectangle, Screen, Window, WindowClass,
 };
 use x11rb::protocol::Event;
 use x11rb::rust_connection::RustConnection;
 use x11rb::wrapper::ConnectionExt as _;
 
+pub static GRAY_COLOR: u32 = 0x3b3b3b;
 pub static INITIAL_SIZE: (u16, u16) = (600, 800);
 pub static TITLE: &str = "mevi";
 
@@ -50,10 +51,8 @@ pub struct Mevi<'a> {
     image_info: ImageInfo,
     tile_gc: Gcontext,
     font_gc: Gcontext,
-    font_gc_selected: Gcontext,
     needs_redraw: bool,
     menu: Menu,
-    pointer_pos: (i16, i16),
     show_file_info: bool,
 }
 
@@ -98,7 +97,7 @@ impl<'a> Mevi<'a> {
             &CreateGCAux::default()
                 .font(font)
                 .foreground(screen.white_pixel)
-                .background(screen.black_pixel),
+                .background(GRAY_COLOR),
         )?;
 
         conn.close_font(font)?;
@@ -205,7 +204,7 @@ impl<'a> Mevi<'a> {
         conn.map_window(window)?;
         conn.flush()?;
 
-        let menu = Menu::create(conn, screen, window)?;
+        let menu = Menu::create(conn, screen, font_gc, font_gc_selected, window)?;
 
         Ok(Self {
             atoms,
@@ -218,10 +217,8 @@ impl<'a> Mevi<'a> {
             image_info,
             tile_gc,
             font_gc,
-            font_gc_selected,
             needs_redraw: false,
             menu,
-            pointer_pos: (0, 0),
             show_file_info: CLI.info,
         })
     }
@@ -237,27 +234,39 @@ impl<'a> Mevi<'a> {
                 }
                 Event::KeyRelease(e) => {
                     mevi_event!(e);
-                    if e.detail == 31 {
-                        self.show_file_info = !self.show_file_info;
-                        self.needs_redraw = true;
+                    match e.detail {
+                        31 => {
+                            self.show_file_info = !self.show_file_info;
+                        }
+                        111 => self.menu.select_prev(),
+                        116 => self.menu.select_next(),
+                        _ => {}
                     }
+                    self.needs_redraw = true;
                 }
                 Event::ButtonPress(e) => {
                     mevi_event!(e);
                     if e.detail == 3 && !self.menu.visible {
                         self.menu.map_window(self.conn, e.event_x, e.event_y)?;
-                        // draw once when we map
-                        self.try_draw_menu()?;
                         self.needs_redraw = true;
+                    } else if e.detail == 1
+                        && self.menu.visible
+                        && xy_in_rect!(e.event_x, e.event_y, self.menu.rect())
+                    {
+                        match self.menu.get_action() {
+                            MenuAction::ShowInfo => self.show_file_info = !self.show_file_info,
+                            MenuAction::None => {}
+                        }
+                        self.menu.unmap_window(self.conn)?;
                     } else if (e.detail == 1 || e.detail == 3) && self.menu.visible {
                         self.menu.unmap_window(self.conn)?;
                     }
                 }
                 Event::MotionNotify(e) => {
-                    // very verbose
-                    if self.menu.has_pointer_within(e.event_x, e.event_y) {
-                        self.pointer_pos = (e.event_x, e.event_y);
-                        self.needs_redraw = true;
+                    if self.menu.visible && xy_in_rect!(e.event_x, e.event_y, self.menu.rect()) {
+                        self.needs_redraw = self.menu.select_at_xy(e.event_x, e.event_y);
+                    } else if self.menu.visible {
+                        self.needs_redraw = self.menu.deselect();
                     }
                 }
                 Event::ClientMessage(evt) => {
@@ -286,14 +295,7 @@ impl<'a> Mevi<'a> {
         if !self.menu.visible {
             return Ok(());
         }
-
-        self.menu.draw(
-            self.conn,
-            self.pointer_pos,
-            self.font_gc,
-            self.font_gc_selected,
-        )?;
-
+        self.menu.draw(self.conn)?;
         Ok(())
     }
 

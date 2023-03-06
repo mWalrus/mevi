@@ -4,6 +4,8 @@ mod img;
 mod log;
 mod menu;
 mod screen;
+#[macro_use]
+mod util;
 mod window;
 
 use anyhow::Result;

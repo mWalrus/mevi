@@ -255,6 +255,7 @@ impl<'a> Mevi<'a> {
                     {
                         match self.menu.get_action() {
                             MenuAction::ShowInfo => self.show_file_info = !self.show_file_info,
+                            MenuAction::Exit => break,
                             MenuAction::None => {}
                         }
                         self.menu.unmap_window(self.conn)?;

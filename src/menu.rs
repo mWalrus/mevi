@@ -14,6 +14,7 @@ const MENU_ITEM_HEIGHT: u16 = 20;
 #[derive(Debug, Clone, Copy)]
 pub enum MenuAction {
     ShowInfo,
+    Exit,
     None,
 }
 
@@ -108,14 +109,7 @@ impl Menu {
                 width,
                 MENU_ITEM_HEIGHT,
             ),
-            MenuItem::new(
-                "Test item",
-                MenuAction::None,
-                0,
-                20,
-                width,
-                MENU_ITEM_HEIGHT,
-            ),
+            MenuItem::new("Exit", MenuAction::Exit, 0, 20, width, MENU_ITEM_HEIGHT),
         ];
         let height = items.len() as u16 * MENU_ITEM_HEIGHT;
 
@@ -160,7 +154,6 @@ impl Menu {
 
     pub fn map_window(&mut self, conn: &RustConnection, x: i16, y: i16) -> Result<()> {
         conn.configure_window(self.id, &ConfigureWindowAux::new().x(x as i32).y(y as i32))?;
-
         conn.map_window(self.id)?;
         conn.flush()?;
 

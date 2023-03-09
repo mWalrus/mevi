@@ -1,3 +1,4 @@
+use crate::keys::Key;
 use crate::menu::{Menu, MenuAction};
 use crate::{screen, Atoms, CLI};
 use anyhow::Result;
@@ -54,6 +55,7 @@ pub struct Mevi<'a> {
     needs_redraw: bool,
     menu: Menu,
     show_file_info: bool,
+    should_exit: bool,
 }
 
 impl<'a> Mevi<'a> {
@@ -220,6 +222,7 @@ impl<'a> Mevi<'a> {
             needs_redraw: false,
             menu,
             show_file_info: CLI.info,
+            should_exit: false,
         })
     }
 
@@ -234,12 +237,18 @@ impl<'a> Mevi<'a> {
                 }
                 Event::KeyRelease(e) => {
                     mevi_event!(e);
-                    match e.detail {
-                        31 => {
+                    match key!(e.detail) {
+                        Key::I => {
                             self.show_file_info = !self.show_file_info;
                         }
-                        111 => self.menu.select_prev(),
-                        116 => self.menu.select_next(),
+                        Key::M => self.menu.map_window(self.conn, 0, 0)?,
+                        Key::Up => self.menu.select_prev(),
+                        Key::Down => self.menu.select_next(),
+                        Key::Esc if self.menu.visible => {
+                            self.menu.unmap_window(self.conn)?;
+                        }
+                        Key::Esc => self.should_exit = true,
+                        Key::Enter if self.menu.visible => self.handle_menu_action()?,
                         _ => {}
                     }
                     self.needs_redraw = true;
@@ -253,12 +262,7 @@ impl<'a> Mevi<'a> {
                         && self.menu.visible
                         && xy_in_rect!(e.event_x, e.event_y, self.menu.rect())
                     {
-                        match self.menu.get_action() {
-                            MenuAction::ShowInfo => self.show_file_info = !self.show_file_info,
-                            MenuAction::Exit => break,
-                            MenuAction::None => {}
-                        }
-                        self.menu.unmap_window(self.conn)?;
+                        self.handle_menu_action()?;
                     } else if (e.detail == 1 || e.detail == 3) && self.menu.visible {
                         self.menu.unmap_window(self.conn)?;
                     }
@@ -276,19 +280,34 @@ impl<'a> Mevi<'a> {
                         && evt.window == self.window
                         && data[0] == self.atoms.WM_DELETE_WINDOW
                     {
-                        mevi_info!("Exit signal received");
-                        break;
+                        self.should_exit = true;
                     }
                 }
                 Event::Error(e) => mevi_err!("Received error: {e:?}"),
                 _ => {}
             }
+
+            if self.should_exit {
+                mevi_info!("Exit signal received");
+                break;
+            }
+
             if self.needs_redraw {
                 self.draw_image()?;
                 self.try_draw_menu()?;
                 self.needs_redraw = false;
             }
         }
+        Ok(())
+    }
+
+    fn handle_menu_action(&mut self) -> Result<()> {
+        match self.menu.get_action() {
+            MenuAction::ShowInfo => self.show_file_info = !self.show_file_info,
+            MenuAction::Exit => self.should_exit = true,
+            MenuAction::None => {}
+        }
+        self.menu.unmap_window(self.conn)?;
         Ok(())
     }
 

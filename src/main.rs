@@ -1,5 +1,6 @@
 mod cli;
 mod img;
+mod keys;
 #[macro_use]
 mod log;
 mod menu;

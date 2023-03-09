@@ -12,8 +12,12 @@ macro_rules! __mevi_dbg {
 }
 
 macro_rules! mevi_event {
-    ($arg:tt) => {{
-        __mevi_dbg!($crate::LogType::Event, "{:?}", $arg);
+    ($arg:expr) => {{
+        use x11rb::protocol::Event;
+        match $arg {
+            Event::MotionNotify(_) => {}
+            _ => __mevi_dbg!($crate::LogType::Event, "{:?}", $arg),
+        }
     }};
 }
 

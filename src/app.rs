@@ -1,5 +1,6 @@
-use crate::keys::Key;
+use crate::event::MeviEvent;
 use crate::menu::{Menu, MenuAction};
+use crate::util::{GRAY_COLOR, INITIAL_SIZE, TITLE};
 use crate::{screen, Atoms, CLI};
 use anyhow::Result;
 use std::borrow::Cow;
@@ -10,13 +11,8 @@ use x11rb::protocol::xproto::{
     ConnectionExt, CreateGCAux, CreateWindowAux, EventMask, FillStyle, Gcontext, Pixmap, PropMode,
     Rectangle, Screen, Window, WindowClass,
 };
-use x11rb::protocol::Event;
 use x11rb::rust_connection::RustConnection;
 use x11rb::wrapper::ConnectionExt as _;
-
-pub static GRAY_COLOR: u32 = 0x3b3b3b;
-pub static INITIAL_SIZE: (u16, u16) = (600, 800);
-pub static TITLE: &str = "mevi";
 
 pub struct DrawInfo {
     pub child: Rectangle,
@@ -42,9 +38,9 @@ struct ImageInfo {
 }
 
 pub struct Mevi<'a> {
-    atoms: Atoms,
-    conn: &'a RustConnection,
-    window: Window,
+    pub atoms: Atoms,
+    pub conn: &'a RustConnection,
+    pub window: Window,
     screen: &'a Screen,
     buffer: Pixmap,
     buffer_gc: Gcontext,
@@ -53,7 +49,9 @@ pub struct Mevi<'a> {
     tile_gc: Gcontext,
     font_gc: Gcontext,
     needs_redraw: bool,
-    menu: Menu,
+    pub menu: Menu,
+    pub w: u16,
+    pub h: u16,
     show_file_info: bool,
     should_exit: bool,
 }
@@ -221,70 +219,28 @@ impl<'a> Mevi<'a> {
             font_gc,
             needs_redraw: false,
             menu,
+            w: INITIAL_SIZE.0,
+            h: INITIAL_SIZE.1,
             show_file_info: CLI.info,
             should_exit: false,
         })
     }
 
-    pub fn run_event_handler(&mut self) -> Result<()> {
+    pub fn run_event_loop(&mut self) -> Result<()> {
         loop {
             let event = self.conn.wait_for_event()?;
 
-            match event {
-                Event::Expose(e) if e.count == 0 => {
-                    mevi_event!(e);
-                    self.needs_redraw = true;
-                }
-                Event::KeyRelease(e) => {
-                    mevi_event!(e);
-                    match key!(e.detail) {
-                        Key::I => {
-                            self.show_file_info = !self.show_file_info;
-                        }
-                        Key::M => self.menu.map_window(self.conn, 0, 0)?,
-                        Key::Up => self.menu.select_prev(),
-                        Key::Down => self.menu.select_next(),
-                        Key::Esc if self.menu.visible => {
-                            self.menu.unmap_window(self.conn)?;
-                        }
-                        Key::Esc => self.should_exit = true,
-                        Key::Enter if self.menu.visible => self.handle_menu_action()?,
-                        _ => {}
-                    }
-                    self.needs_redraw = true;
-                }
-                Event::ButtonPress(e) => {
-                    mevi_event!(e);
-                    if e.detail == 3 && !self.menu.visible {
-                        self.menu.map_window(self.conn, e.event_x, e.event_y)?;
-                        self.needs_redraw = true;
-                    } else if e.detail == 1
-                        && self.menu.visible
-                        && xy_in_rect!(e.event_x, e.event_y, self.menu.rect())
-                    {
-                        self.handle_menu_action()?;
-                    } else if (e.detail == 1 || e.detail == 3) && self.menu.visible {
-                        self.menu.unmap_window(self.conn)?;
-                    }
-                }
-                Event::MotionNotify(e) => {
-                    if self.menu.visible && xy_in_rect!(e.event_x, e.event_y, self.menu.rect()) {
-                        self.needs_redraw = self.menu.select_at_xy(e.event_x, e.event_y);
-                    } else if self.menu.visible {
-                        self.needs_redraw = self.menu.deselect();
-                    }
-                }
-                Event::ClientMessage(evt) => {
-                    let data = evt.data.as_data32();
-                    if evt.format == 32
-                        && evt.window == self.window
-                        && data[0] == self.atoms.WM_DELETE_WINDOW
-                    {
-                        self.should_exit = true;
-                    }
-                }
-                Event::Error(e) => mevi_err!("Received error: {e:?}"),
-                _ => {}
+            match MeviEvent::handle(&self, event) {
+                MeviEvent::DrawImage => self.needs_redraw = true,
+                MeviEvent::ToggleFileInfo => self.toggle_show_file_info(),
+                MeviEvent::Menu(menu_evt) => match self.menu.handle_event(self.conn, menu_evt)? {
+                    MenuAction::ToggleFileInfo => self.toggle_show_file_info(),
+                    MenuAction::Exit => self.should_exit = true,
+                    MenuAction::None => {}
+                },
+                MeviEvent::Exit => self.should_exit = true,
+                MeviEvent::Error(e) => mevi_err!("{e:?}"),
+                MeviEvent::Idle => {}
             }
 
             if self.should_exit {
@@ -294,33 +250,20 @@ impl<'a> Mevi<'a> {
 
             if self.needs_redraw {
                 self.draw_image()?;
-                self.try_draw_menu()?;
-                self.needs_redraw = false;
             }
         }
         Ok(())
     }
 
-    fn handle_menu_action(&mut self) -> Result<()> {
-        match self.menu.get_action() {
-            MenuAction::ShowInfo => self.show_file_info = !self.show_file_info,
-            MenuAction::Exit => self.should_exit = true,
-            MenuAction::None => {}
-        }
-        self.menu.unmap_window(self.conn)?;
-        Ok(())
+    fn toggle_show_file_info(&mut self) {
+        self.show_file_info = !self.show_file_info;
+        self.needs_redraw = true;
     }
 
-    fn try_draw_menu(&self) -> Result<()> {
-        if !self.menu.visible {
-            return Ok(());
-        }
-        self.menu.draw(self.conn)?;
-        Ok(())
-    }
-
-    fn draw_image(&self) -> Result<()> {
+    fn draw_image(&mut self) -> Result<()> {
         let info = self.calc_image_draw_info()?;
+        self.w = info.parent.width;
+        self.h = info.parent.height;
 
         self.conn.create_pixmap(
             self.screen.root_depth,
@@ -369,6 +312,7 @@ impl<'a> Mevi<'a> {
 
         self.conn.free_pixmap(self.buffer)?;
         self.conn.flush()?;
+        self.needs_redraw = false;
         Ok(())
     }
 

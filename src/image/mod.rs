@@ -27,7 +27,7 @@ pub fn load_image(fp: &PathBuf, sw: u32, sh: u32) -> Result<(Image<'static>, u32
 }
 
 pub fn get_bg_image() -> Result<Image<'static>> {
-    let bytes = include_bytes!("resources/transparent-bg-smaller.png");
+    let bytes = include_bytes!("../resources/transparent-bg-smaller.png");
 
     let image_buffer = image::load_from_memory(bytes)?.into_rgb8();
     let image = Image::new(

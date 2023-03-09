@@ -37,11 +37,11 @@ impl MeviImage {
         pixel_layout: PixelLayout,
     ) -> Result<Self> {
         let size = {
-            let f = File::open(&path)?;
+            let f = File::open(path)?;
             let data = f.metadata()?;
             data.len() / 1024 // Kb
         };
-        let image = ImageReader::open(&path)?.with_guessed_format()?;
+        let image = ImageReader::open(path)?.with_guessed_format()?;
         let format = if let Some(fmt) = image.format() {
             format!("{fmt:?}")
         } else {

@@ -210,7 +210,7 @@ impl<'a> Mevi<'a> {
         loop {
             let event = self.conn.wait_for_event()?;
 
-            match MeviEvent::handle(&self, event) {
+            match MeviEvent::handle(self, event) {
                 MeviEvent::DrawImage => self.needs_redraw = true,
                 MeviEvent::ToggleFileInfo => self.toggle_show_file_info(),
                 MeviEvent::Menu(menu_evt) => match self.menu.handle_event(self.conn, menu_evt)? {

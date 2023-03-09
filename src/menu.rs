@@ -1,4 +1,8 @@
-use crate::{window::GRAY_COLOR, xy_in_rect};
+use crate::{
+    event::MenuEvent,
+    util::{GRAY_COLOR, MENU_ITEM_HEIGHT},
+    xy_in_rect,
+};
 use anyhow::Result;
 use x11rb::{
     connection::Connection,
@@ -9,11 +13,9 @@ use x11rb::{
     rust_connection::RustConnection,
 };
 
-const MENU_ITEM_HEIGHT: u16 = 20;
-
 #[derive(Debug, Clone, Copy)]
 pub enum MenuAction {
-    ShowInfo,
+    ToggleFileInfo,
     Exit,
     None,
 }
@@ -103,7 +105,7 @@ impl Menu {
         let items = [
             MenuItem::new(
                 "Show file info",
-                MenuAction::ShowInfo,
+                MenuAction::ToggleFileInfo,
                 0,
                 0,
                 width,
@@ -152,7 +154,29 @@ impl Menu {
         Ok(menu)
     }
 
-    pub fn map_window(&mut self, conn: &RustConnection, x: i16, y: i16) -> Result<()> {
+    pub fn handle_event(&mut self, conn: &RustConnection, e: MenuEvent) -> Result<MenuAction> {
+        let mut action: Option<MenuAction> = None;
+        let needs_redraw = match e {
+            MenuEvent::MapAt(x, y) => self.map_window(conn, x, y)?,
+            MenuEvent::Unmap => self.unmap_window(conn)?,
+            MenuEvent::Next => self.select_next(),
+            MenuEvent::Prev => self.select_prev(),
+            MenuEvent::FindHovered(x, y) => self.select_at_xy(x, y),
+            MenuEvent::Select => {
+                action = Some(self.get_action());
+                self.unmap_window(conn)?
+            }
+            MenuEvent::Deselect => self.deselect(),
+        };
+
+        if needs_redraw {
+            self.draw(conn)?;
+        }
+
+        Ok(action.unwrap_or(MenuAction::None))
+    }
+
+    fn map_window(&mut self, conn: &RustConnection, x: i16, y: i16) -> Result<bool> {
         conn.configure_window(self.id, &ConfigureWindowAux::new().x(x as i32).y(y as i32))?;
         conn.map_window(self.id)?;
         conn.flush()?;
@@ -166,19 +190,23 @@ impl Menu {
 
         mevi_info!("Mapped menu window to pos (x: {x}, y: {y})");
 
-        Ok(())
+        Ok(true)
     }
 
-    pub fn unmap_window(&mut self, conn: &RustConnection) -> Result<()> {
+    fn unmap_window(&mut self, conn: &RustConnection) -> Result<bool> {
         conn.unmap_window(self.id)?;
         conn.flush()?;
         self.visible = false;
 
         mevi_info!("Unmapped menu window");
-        Ok(())
+        Ok(true)
     }
 
-    pub fn draw(&self, conn: &RustConnection) -> Result<()> {
+    fn draw(&self, conn: &RustConnection) -> Result<()> {
+        if !self.visible {
+            return Ok(());
+        }
+
         let selected = self.selected.unwrap_or(usize::MAX);
         for (i, item) in self.items.iter().enumerate() {
             let (font_gc, bg_gc) = if i == selected {
@@ -228,28 +256,30 @@ impl Menu {
         MenuAction::None
     }
 
-    pub fn select_next(&mut self) {
+    pub fn select_next(&mut self) -> bool {
         if let Some(i) = self.selected {
             if i == self.items.len() - 1 {
                 self.selected = Some(0);
             } else {
                 self.selected = Some(i + 1);
             }
-            return;
+        } else {
+            self.selected = Some(0);
         }
-        self.selected = Some(0);
+        true
     }
 
-    pub fn select_prev(&mut self) {
+    pub fn select_prev(&mut self) -> bool {
         if let Some(i) = self.selected {
             if i == 0 {
                 self.selected = Some(self.items.len() - 1);
             } else {
                 self.selected = Some(i - 1);
             }
-            return;
+        } else {
+            self.selected = Some(self.items.len() - 1);
         }
-        self.selected = Some(self.items.len() - 1);
+        true
     }
 
     pub fn deselect(&mut self) -> bool {

@@ -1,5 +1,5 @@
 mod cli;
-mod img;
+mod image;
 mod keys;
 #[macro_use]
 mod log;
@@ -7,13 +7,14 @@ mod menu;
 mod screen;
 #[macro_use]
 mod util;
-mod window;
+mod app;
+mod event;
 
 use anyhow::Result;
+use app::Mevi;
 use clap::Parser;
 use cli::Cli;
 use lazy_static::lazy_static;
-use window::Mevi;
 use x11rb::connection::Connection;
 
 pub(crate) enum LogType {
@@ -42,17 +43,17 @@ fn main() -> Result<()> {
 
     let screen = &conn.setup().roots[screen_num];
 
-    let (image, orig_w, orig_h) = img::load_image(
+    let (image, orig_w, orig_h) = image::load_image(
         &CLI.path,
         screen.width_in_pixels as u32,
         screen.height_in_pixels as u32,
     )?;
-    let bg_img = img::get_bg_image()?;
+    let bg_img = image::get_bg_image()?;
 
     let atoms = Atoms::new(&conn)?.reply()?;
 
     match Mevi::init(&conn, screen, atoms, &image, orig_w, orig_h, &bg_img) {
-        Ok(mut mevi) => mevi.run_event_handler()?,
+        Ok(mut mevi) => mevi.run_event_loop()?,
         Err(e) => {
             mevi_err!("{e:?}");
             std::process::exit(1);

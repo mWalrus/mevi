@@ -1,5 +1,5 @@
 mod cli;
-mod image;
+mod img;
 mod keys;
 #[macro_use]
 mod log;
@@ -14,6 +14,7 @@ use anyhow::Result;
 use app::Mevi;
 use clap::Parser;
 use cli::Cli;
+use img::MeviImage;
 use lazy_static::lazy_static;
 use x11rb::connection::Connection;
 
@@ -43,16 +44,15 @@ fn main() -> Result<()> {
 
     let screen = &conn.setup().roots[screen_num];
 
-    let (image, orig_w, orig_h) = image::load_image(
-        &CLI.path,
-        screen.width_in_pixels as u32,
-        screen.height_in_pixels as u32,
-    )?;
-    let bg_img = image::get_bg_image()?;
+    let pixel_layout = screen::check_visual(screen, screen.root_visual);
+
+    let image = MeviImage::new(&conn, screen, &CLI.path, pixel_layout)?;
+
+    let bg_img = img::get_bg_image(&conn, pixel_layout)?;
 
     let atoms = Atoms::new(&conn)?.reply()?;
 
-    match Mevi::init(&conn, screen, atoms, &image, orig_w, orig_h, &bg_img) {
+    match Mevi::init(&conn, screen, atoms, image, bg_img) {
         Ok(mut mevi) => mevi.run_event_loop()?,
         Err(e) => {
             mevi_err!("{e:?}");

@@ -39,7 +39,7 @@ struct ImageInfo {
 
 pub struct Mevi<'a> {
     pub atoms: Atoms,
-    pub conn: &'a RustConnection,
+    conn: &'a RustConnection,
     pub window: Window,
     screen: &'a Screen,
     buffer: Pixmap,

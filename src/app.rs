@@ -304,8 +304,12 @@ impl<'a> Mevi<'a> {
                 0,
                 11,
                 format!(
-                    "path: {} | dimensions: {}x{}",
-                    self.image.path, self.image.ow, self.image.oh
+                    "path: {} | dimensions: {}x{} | type: {} | size: {}Kb",
+                    self.image.path,
+                    self.image.ow,
+                    self.image.oh,
+                    self.image.format,
+                    self.image.size
                 )
                 .as_bytes(),
             )?;

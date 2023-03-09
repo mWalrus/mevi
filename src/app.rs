@@ -1,12 +1,12 @@
 use crate::event::MeviEvent;
+use crate::img::MeviImage;
 use crate::menu::{Menu, MenuAction};
 use crate::util::{GRAY_COLOR, INITIAL_SIZE, TITLE};
-use crate::{screen, Atoms, CLI};
+use crate::{Atoms, CLI};
 use anyhow::Result;
-use std::borrow::Cow;
 use std::fmt::Display;
 use x11rb::connection::Connection;
-use x11rb::image::{ColorComponent, Image, PixelLayout};
+use x11rb::image::Image;
 use x11rb::protocol::xproto::{
     ConnectionExt, CreateGCAux, CreateWindowAux, EventMask, FillStyle, Gcontext, Pixmap, PropMode,
     Rectangle, Screen, Window, WindowClass,
@@ -29,14 +29,6 @@ impl Display for DrawInfo {
     }
 }
 
-struct ImageInfo {
-    original_width: u32,
-    original_height: u32,
-    width: u16,
-    height: u16,
-    path: String,
-}
-
 pub struct Mevi<'a> {
     pub atoms: Atoms,
     conn: &'a RustConnection,
@@ -45,7 +37,7 @@ pub struct Mevi<'a> {
     buffer: Pixmap,
     buffer_gc: Gcontext,
     image_pixmap: Pixmap,
-    image_info: ImageInfo,
+    image: MeviImage,
     tile_gc: Gcontext,
     font_gc: Gcontext,
     needs_redraw: bool,
@@ -61,10 +53,8 @@ impl<'a> Mevi<'a> {
         conn: &'a RustConnection,
         screen: &'a Screen,
         atoms: Atoms,
-        image: &'a Image,
-        orig_w: u32,
-        orig_h: u32,
-        bg_img: &'a Image,
+        image: MeviImage,
+        bg_img: Image,
     ) -> Result<Self> {
         let window = conn.generate_id()?;
         let image_pixmap = conn.generate_id()?;
@@ -116,17 +106,7 @@ impl<'a> Mevi<'a> {
             &CreateGCAux::default().graphics_exposures(0),
         )?;
 
-        let (img, bg) = Self::reencode_images(&conn, screen, &image, &bg_img)?;
-
-        let image_info = ImageInfo {
-            original_width: orig_w,
-            original_height: orig_h,
-            width: img.width(),
-            height: img.height(),
-            path,
-        };
-
-        bg.put(conn, background_pixmap, background_gc, 0, 0)?;
+        bg_img.put(conn, background_pixmap, background_gc, 0, 0)?;
 
         conn.create_gc(
             tile_gc,
@@ -149,11 +129,11 @@ impl<'a> Mevi<'a> {
             screen.root_depth,
             image_pixmap,
             screen.root,
-            image_info.width,
-            image_info.height,
+            image.w,
+            image.h,
         )?;
 
-        img.put(conn, image_pixmap, buffer_gc, 0, 0)?;
+        image.inner.put(conn, image_pixmap, buffer_gc, 0, 0)?;
 
         let win_aux = CreateWindowAux::default().event_mask(
             EventMask::EXPOSURE
@@ -214,7 +194,7 @@ impl<'a> Mevi<'a> {
             buffer,
             buffer_gc,
             image_pixmap,
-            image_info,
+            image,
             tile_gc,
             font_gc,
             needs_redraw: false,
@@ -325,9 +305,7 @@ impl<'a> Mevi<'a> {
                 11,
                 format!(
                     "path: {} | dimensions: {}x{}",
-                    self.image_info.path,
-                    self.image_info.original_width,
-                    self.image_info.original_height
+                    self.image.path, self.image.ow, self.image.oh
                 )
                 .as_bytes(),
             )?;
@@ -335,43 +313,23 @@ impl<'a> Mevi<'a> {
         Ok(())
     }
 
-    fn reencode_images(
-        conn: &RustConnection,
-        screen: &Screen,
-        image: &'a Image,
-        bg: &'a Image,
-    ) -> Result<(Cow<'a, Image<'a>>, Cow<'a, Image<'a>>)> {
-        let foreign_layout = PixelLayout::new(
-            ColorComponent::new(8, 0)?,
-            ColorComponent::new(8, 8)?,
-            ColorComponent::new(8, 16)?,
-        );
-
-        let pixel_layout = screen::check_visual(screen, screen.root_visual);
-
-        let img = image.reencode(foreign_layout, pixel_layout, conn.setup())?;
-
-        let bg = bg.reencode(foreign_layout, pixel_layout, conn.setup())?;
-        Ok((img, bg))
-    }
-
     fn calc_image_draw_info(&self) -> Result<DrawInfo> {
         let attrs = self.conn.get_geometry(self.window)?.reply()?;
         let (parent_w, parent_h) = (attrs.width, attrs.height);
         let (cx, cy) = (parent_w as i16 / 2, parent_h as i16 / 2);
 
-        let child_x = cx - (self.image_info.width as i16 / 2);
-        let child_y = cy - (self.image_info.height as i16 / 2);
+        let child_x = cx - (self.image.w as i16 / 2);
+        let child_y = cy - (self.image.h as i16 / 2);
 
-        let (child_x, parent_x, child_w) = if self.image_info.width > parent_w {
+        let (child_x, parent_x, child_w) = if self.image.w > parent_w {
             (child_x.abs(), 0, parent_w)
         } else {
-            (0, child_x, self.image_info.width)
+            (0, child_x, self.image.w)
         };
-        let (child_y, parent_y, child_h) = if self.image_info.height > parent_h {
+        let (child_y, parent_y, child_h) = if self.image.h > parent_h {
             (child_y.abs(), 0, parent_h)
         } else {
-            (0, child_y, self.image_info.height)
+            (0, child_y, self.image.h)
         };
 
         let info = DrawInfo {

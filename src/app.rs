@@ -1,6 +1,7 @@
 use crate::event::MeviEvent;
 use crate::img::MeviImage;
 use crate::menu::{Menu, MenuAction};
+use crate::state::MeviState;
 use crate::util::{GRAY_COLOR, INITIAL_SIZE, TITLE};
 use crate::{Atoms, CLI};
 use anyhow::Result;
@@ -8,8 +9,8 @@ use std::fmt::Display;
 use x11rb::connection::Connection;
 use x11rb::image::Image;
 use x11rb::protocol::xproto::{
-    ConnectionExt, CreateGCAux, CreateWindowAux, EventMask, FillStyle, Gcontext, Pixmap, PropMode,
-    Rectangle, Screen, Window, WindowClass,
+    ConnectionExt, CreateGCAux, CreateWindowAux, EventMask, FillStyle, PropMode, Rectangle, Screen,
+    WindowClass,
 };
 use x11rb::rust_connection::RustConnection;
 use x11rb::wrapper::ConnectionExt as _;
@@ -32,14 +33,9 @@ impl Display for DrawInfo {
 pub struct Mevi<'a> {
     pub atoms: Atoms,
     conn: &'a RustConnection,
-    pub window: Window,
     screen: &'a Screen,
-    buffer: Pixmap,
-    buffer_gc: Gcontext,
-    image_pixmap: Pixmap,
+    pub state: MeviState,
     image: MeviImage,
-    tile_gc: Gcontext,
-    font_gc: Gcontext,
     needs_redraw: bool,
     pub menu: Menu,
     pub w: u16,
@@ -56,24 +52,16 @@ impl<'a> Mevi<'a> {
         image: MeviImage,
         bg_img: Image,
     ) -> Result<Self> {
-        let window = conn.generate_id()?;
-        let image_pixmap = conn.generate_id()?;
-        let buffer = conn.generate_id()?;
-        let buffer_gc = conn.generate_id()?;
-        let background_pixmap = conn.generate_id()?;
-        let background_gc = conn.generate_id()?;
-        let tile_gc = conn.generate_id()?;
-        let font_gc = conn.generate_id()?;
-        let font_gc_selected = conn.generate_id()?;
-        let font = conn.generate_id()?;
+        let state = MeviState::init(conn)?;
 
         let path = CLI.path.to_string_lossy().to_string();
         let title = format!("{TITLE} - {path}");
 
+        let font = conn.generate_id()?;
         conn.open_font(font, "fixed".as_bytes())?;
 
         conn.create_gc(
-            font_gc,
+            state.gcs.font,
             screen.root,
             &CreateGCAux::default()
                 .font(font)
@@ -82,7 +70,7 @@ impl<'a> Mevi<'a> {
         )?;
 
         conn.create_gc(
-            font_gc_selected,
+            state.gcs.font_selected,
             screen.root,
             &CreateGCAux::default()
                 .font(font)
@@ -94,46 +82,48 @@ impl<'a> Mevi<'a> {
 
         conn.create_pixmap(
             screen.root_depth,
-            background_pixmap,
+            state.pms.background,
             screen.root,
             bg_img.width(),
             bg_img.height(),
         )?;
 
         conn.create_gc(
-            background_gc,
+            state.gcs.background,
             screen.root,
             &CreateGCAux::default().graphics_exposures(0),
         )?;
 
-        bg_img.put(conn, background_pixmap, background_gc, 0, 0)?;
+        bg_img.put(conn, state.pms.background, state.gcs.background, 0, 0)?;
 
         conn.create_gc(
-            tile_gc,
+            state.gcs.tile,
             screen.root,
             &CreateGCAux::default()
                 .fill_style(Some(FillStyle::TILED))
-                .tile(background_pixmap),
+                .tile(state.pms.background),
         )?;
 
-        conn.free_gc(background_gc)?;
-        conn.free_pixmap(background_pixmap)?;
+        conn.free_gc(state.gcs.background)?;
+        conn.free_pixmap(state.pms.background)?;
 
         conn.create_gc(
-            buffer_gc,
+            state.gcs.buffer,
             screen.root,
             &CreateGCAux::default().graphics_exposures(0),
         )?;
 
         conn.create_pixmap(
             screen.root_depth,
-            image_pixmap,
+            state.pms.image,
             screen.root,
             image.w,
             image.h,
         )?;
 
-        image.inner.put(conn, image_pixmap, buffer_gc, 0, 0)?;
+        image
+            .inner
+            .put(conn, state.pms.image, state.gcs.buffer, 0, 0)?;
 
         let win_aux = CreateWindowAux::default().event_mask(
             EventMask::EXPOSURE
@@ -145,7 +135,7 @@ impl<'a> Mevi<'a> {
 
         conn.create_window(
             screen.root_depth,
-            window,
+            state.window,
             screen.root,
             0,
             0,
@@ -159,7 +149,7 @@ impl<'a> Mevi<'a> {
 
         conn.change_property8(
             PropMode::REPLACE,
-            window,
+            state.window,
             atoms.WM_NAME,
             atoms.STRING,
             title.as_bytes(),
@@ -167,7 +157,7 @@ impl<'a> Mevi<'a> {
 
         conn.change_property8(
             PropMode::REPLACE,
-            window,
+            state.window,
             atoms._NET_WM_NAME,
             atoms.UTF8_STRING,
             title.as_bytes(),
@@ -175,28 +165,29 @@ impl<'a> Mevi<'a> {
 
         conn.change_property32(
             PropMode::REPLACE,
-            window,
+            state.window,
             atoms.WM_PROTOCOLS,
             atoms.ATOM,
             &[atoms.WM_DELETE_WINDOW],
         )?;
 
-        conn.map_window(window)?;
+        conn.map_window(state.window)?;
         conn.flush()?;
 
-        let menu = Menu::create(conn, screen, font_gc, font_gc_selected, window)?;
+        let menu = Menu::create(
+            conn,
+            screen,
+            state.gcs.font,
+            state.gcs.font_selected,
+            state.window,
+        )?;
 
         Ok(Self {
             atoms,
             conn,
-            window,
             screen,
-            buffer,
-            buffer_gc,
-            image_pixmap,
+            state,
             image,
-            tile_gc,
-            font_gc,
             needs_redraw: false,
             menu,
             w: INITIAL_SIZE.0,
@@ -247,15 +238,15 @@ impl<'a> Mevi<'a> {
 
         self.conn.create_pixmap(
             self.screen.root_depth,
-            self.buffer,
+            self.state.pms.buffer,
             self.screen.root,
             info.parent.width,
             info.parent.height,
         )?;
 
         self.conn.poly_fill_rectangle(
-            self.buffer,
-            self.tile_gc,
+            self.state.pms.buffer,
+            self.state.gcs.tile,
             &[Rectangle {
                 x: 0,
                 y: 0,
@@ -265,9 +256,9 @@ impl<'a> Mevi<'a> {
         )?;
 
         self.conn.copy_area(
-            self.image_pixmap,
-            self.buffer,
-            self.buffer_gc,
+            self.state.pms.image,
+            self.state.pms.buffer,
+            self.state.gcs.buffer,
             info.child.x,
             info.child.y,
             info.parent.x,
@@ -279,9 +270,9 @@ impl<'a> Mevi<'a> {
         self.draw_file_info()?;
 
         self.conn.copy_area(
-            self.buffer,
-            self.window,
-            self.buffer_gc,
+            self.state.pms.buffer,
+            self.state.window,
+            self.state.gcs.buffer,
             0,
             0,
             0,
@@ -290,7 +281,7 @@ impl<'a> Mevi<'a> {
             info.parent.height,
         )?;
 
-        self.conn.free_pixmap(self.buffer)?;
+        self.conn.free_pixmap(self.state.pms.buffer)?;
         self.conn.flush()?;
         self.needs_redraw = false;
         Ok(())
@@ -299,8 +290,8 @@ impl<'a> Mevi<'a> {
     fn draw_file_info(&self) -> Result<()> {
         if self.show_file_info {
             self.conn.image_text8(
-                self.buffer,
-                self.font_gc,
+                self.state.pms.buffer,
+                self.state.gcs.font,
                 0,
                 11,
                 format!(
@@ -318,7 +309,7 @@ impl<'a> Mevi<'a> {
     }
 
     fn calc_image_draw_info(&self) -> Result<DrawInfo> {
-        let attrs = self.conn.get_geometry(self.window)?.reply()?;
+        let attrs = self.conn.get_geometry(self.state.window)?.reply()?;
         let (parent_w, parent_h) = (attrs.width, attrs.height);
         let (cx, cy) = (parent_w as i16 / 2, parent_h as i16 / 2);
 

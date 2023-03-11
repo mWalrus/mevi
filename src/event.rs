@@ -67,7 +67,9 @@ impl MeviEvent {
             }
             Event::ClientMessage(e) => {
                 let data = e.data.as_data32();
-                if e.format == 32 && e.window == app.window && data[0] == app.atoms.WM_DELETE_WINDOW
+                if e.format == 32
+                    && e.window == app.state.window
+                    && data[0] == app.atoms.WM_DELETE_WINDOW
                 {
                     return Self::Exit;
                 }

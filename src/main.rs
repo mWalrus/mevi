@@ -5,6 +5,7 @@ mod keys;
 mod log;
 mod menu;
 mod screen;
+mod state;
 #[macro_use]
 mod util;
 mod app;

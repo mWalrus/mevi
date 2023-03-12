@@ -33,18 +33,18 @@ impl FontDrawer {
             PictOp::SRC,
             state.pics.font_buffer,
             string.fg,
-            &[Rect::new(1, 1, 0, 0).into()],
+            &[Rect::new(1, 1, (string.width + text_x) as u16, string.height).into()],
         )?;
-        let out_rect = Rect::new(0, 0, (string.width + (text_x * 2)) as u16, string.height);
+        let fill_area = Rect::new(0, 0, (string.width + (text_x * 2)) as u16, string.height);
         conn.render_fill_rectangles(
             PictOp::SRC,
             state.pics.buffer,
             string.bg,
-            &[out_rect.into()],
+            &[fill_area.into()],
         )?;
-        let mut offset = out_rect.x + text_x;
+        let mut offset = fill_area.x + text_x;
         for chunk in &string.chunks {
-            let box_shift = (out_rect.h as i16 - chunk.font_height) / 2;
+            let box_shift = (fill_area.h as i16 - chunk.font_height) / 2;
             self.draw_glyphs(
                 conn,
                 offset,
@@ -81,7 +81,7 @@ impl FontDrawer {
         buf.extend_from_slice(&(y).to_ne_bytes());
 
         for glyph in render {
-            buf.extend_from_slice(&glyph.to_ne_bytes());
+            buf.extend_from_slice(&(glyph).to_ne_bytes());
         }
 
         conn.render_composite_glyphs16(

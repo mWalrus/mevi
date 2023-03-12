@@ -180,6 +180,22 @@ impl<'a> Mevi<'a> {
             WHITE_RENDER_COLOR,
             BLACK_RENDER_COLOR,
         );
+        conn.create_pixmap(
+            screen.root_depth,
+            state.pms.font_buffer,
+            screen.root,
+            file_info.width as u16,
+            file_info.height,
+        )?;
+
+        conn.render_create_picture(
+            state.pics.font_buffer,
+            state.pms.font_buffer,
+            vis_info.root.pict_format,
+            &CreatePictureAux::default()
+                .polyedge(PolyEdge::SMOOTH)
+                .polymode(PolyMode::IMPRECISE),
+        )?;
 
         Ok(Self {
             atoms,
@@ -291,23 +307,6 @@ impl<'a> Mevi<'a> {
 
     fn draw_file_info(&self) -> Result<()> {
         if self.show_file_info {
-            self.conn.create_pixmap(
-                self.screen.root_depth,
-                self.state.pms.font_buffer,
-                self.screen.root,
-                self.file_info.width as u16,
-                self.file_info.height,
-            )?;
-
-            self.conn.render_create_picture(
-                self.state.pics.font_buffer,
-                self.state.pms.font_buffer,
-                self.vis_info.root.pict_format,
-                &CreatePictureAux::default()
-                    .polyedge(PolyEdge::SMOOTH)
-                    .polymode(PolyMode::IMPRECISE),
-            )?;
-
             self.conn.render_create_picture(
                 self.state.pics.buffer,
                 self.state.pms.buffer,
@@ -316,11 +315,9 @@ impl<'a> Mevi<'a> {
             )?;
 
             self.font_drawer
-                .draw(self.conn, &self.state, &self.file_info, 0, 0)?;
+                .draw(self.conn, &self.state, &self.file_info, 5, 0)?;
 
-            self.conn.render_free_picture(self.state.pics.font_buffer)?;
             self.conn.render_free_picture(self.state.pics.buffer)?;
-            self.conn.free_pixmap(self.state.pms.font_buffer)?;
         }
         Ok(())
     }

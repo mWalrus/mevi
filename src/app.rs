@@ -6,7 +6,8 @@ use crate::menu::{Menu, MenuAction};
 use crate::screen::RenderVisualInfo;
 use crate::state::MeviState;
 use crate::util::{
-    DrawInfo, BLACK_RENDER_COLOR, GRAY_COLOR, INITIAL_SIZE, TITLE, WHITE_RENDER_COLOR,
+    DrawInfo, BLACK_RENDER_COLOR, GRAY_COLOR, GRAY_RENDER_COLOR, INITIAL_SIZE, TITLE,
+    WHITE_RENDER_COLOR,
 };
 use crate::{Atoms, CLI};
 use anyhow::Result;
@@ -177,8 +178,8 @@ impl<'a> Mevi<'a> {
         let file_info = RenderString::new(
             &font_drawer,
             image_info,
+            GRAY_RENDER_COLOR,
             WHITE_RENDER_COLOR,
-            BLACK_RENDER_COLOR,
         );
         conn.create_pixmap(
             screen.root_depth,

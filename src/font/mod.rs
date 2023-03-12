@@ -35,12 +35,7 @@ impl FontDrawer {
             string.fg,
             &[Rect::new(1, 1, 0, 0).into()],
         )?;
-        let out_rect = Rect::new(
-            0,
-            0,
-            string.width as u16 + 5,
-            string.height + (string.height / 2),
-        );
+        let out_rect = Rect::new(0, 0, (string.width + (text_x * 2)) as u16, string.height);
         conn.render_fill_rectangles(
             PictOp::SRC,
             state.pics.buffer,

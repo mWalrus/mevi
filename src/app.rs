@@ -1,13 +1,18 @@
 use crate::event::MeviEvent;
+use crate::font::loader::LoadedFont;
+use crate::font::{FontDrawer, RenderString};
 use crate::img::MeviImage;
 use crate::menu::{Menu, MenuAction};
+use crate::screen::RenderVisualInfo;
 use crate::state::MeviState;
-use crate::util::{GRAY_COLOR, INITIAL_SIZE, TITLE};
+use crate::util::{
+    DrawInfo, BLACK_RENDER_COLOR, GRAY_COLOR, INITIAL_SIZE, TITLE, WHITE_RENDER_COLOR,
+};
 use crate::{Atoms, CLI};
 use anyhow::Result;
-use std::fmt::Display;
 use x11rb::connection::Connection;
 use x11rb::image::Image;
+use x11rb::protocol::render::{ConnectionExt as _, CreatePictureAux, PolyEdge, PolyMode, Repeat};
 use x11rb::protocol::xproto::{
     ConnectionExt, CreateGCAux, CreateWindowAux, EventMask, FillStyle, PropMode, Rectangle, Screen,
     WindowClass,
@@ -15,26 +20,14 @@ use x11rb::protocol::xproto::{
 use x11rb::rust_connection::RustConnection;
 use x11rb::wrapper::ConnectionExt as _;
 
-pub struct DrawInfo {
-    pub child: Rectangle,
-    pub parent: Rectangle,
-}
-
-impl Display for DrawInfo {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "draw info: (parent: {:?}, child: {:?})",
-            self.parent, self.child
-        )
-    }
-}
-
 pub struct Mevi<'a> {
     pub atoms: Atoms,
     conn: &'a RustConnection,
     screen: &'a Screen,
+    vis_info: RenderVisualInfo,
+    file_info: RenderString,
     pub state: MeviState,
+    pub font_drawer: FontDrawer,
     image: MeviImage,
     needs_redraw: bool,
     pub menu: Menu,
@@ -174,19 +167,28 @@ impl<'a> Mevi<'a> {
         conn.map_window(state.window)?;
         conn.flush()?;
 
-        let menu = Menu::create(
-            conn,
-            screen,
-            state.gcs.font,
-            state.gcs.font_selected,
-            state.window,
-        )?;
+        let vis_info = RenderVisualInfo::new(conn, screen)?;
+
+        let menu = Menu::create(conn, screen, &state)?;
+        let font = LoadedFont::new(conn, vis_info.render.pict_format)?;
+        let font_drawer = FontDrawer::new(font);
+
+        let image_info = image.to_string();
+        let file_info = RenderString::new(
+            &font_drawer,
+            image_info,
+            WHITE_RENDER_COLOR,
+            BLACK_RENDER_COLOR,
+        );
 
         Ok(Self {
             atoms,
             conn,
             screen,
+            vis_info,
+            file_info,
             state,
+            font_drawer,
             image,
             needs_redraw: false,
             menu,
@@ -232,16 +234,16 @@ impl<'a> Mevi<'a> {
     }
 
     fn draw_image(&mut self) -> Result<()> {
-        let info = self.calc_image_draw_info()?;
-        self.w = info.parent.width;
-        self.h = info.parent.height;
+        let di = DrawInfo::calculate(self.conn, &self.state, &self.image)?;
+        self.w = di.parent.w;
+        self.h = di.parent.h;
 
         self.conn.create_pixmap(
             self.screen.root_depth,
             self.state.pms.buffer,
             self.screen.root,
-            info.parent.width,
-            info.parent.height,
+            di.parent.w,
+            di.parent.h,
         )?;
 
         self.conn.poly_fill_rectangle(
@@ -250,8 +252,8 @@ impl<'a> Mevi<'a> {
             &[Rectangle {
                 x: 0,
                 y: 0,
-                width: info.parent.width,
-                height: info.parent.height,
+                width: di.parent.w,
+                height: di.parent.h,
             }],
         )?;
 
@@ -259,12 +261,12 @@ impl<'a> Mevi<'a> {
             self.state.pms.image,
             self.state.pms.buffer,
             self.state.gcs.buffer,
-            info.child.x,
-            info.child.y,
-            info.parent.x,
-            info.parent.y,
-            info.child.width,
-            info.child.height,
+            di.child.x,
+            di.child.y,
+            di.parent.x,
+            di.parent.y,
+            di.child.w,
+            di.child.h,
         )?;
 
         self.draw_file_info()?;
@@ -277,8 +279,8 @@ impl<'a> Mevi<'a> {
             0,
             0,
             0,
-            info.parent.width,
-            info.parent.height,
+            di.parent.w,
+            di.parent.h,
         )?;
 
         self.conn.free_pixmap(self.state.pms.buffer)?;
@@ -289,61 +291,37 @@ impl<'a> Mevi<'a> {
 
     fn draw_file_info(&self) -> Result<()> {
         if self.show_file_info {
-            self.conn.image_text8(
-                self.state.pms.buffer,
-                self.state.gcs.font,
-                0,
-                11,
-                format!(
-                    "path: {} | dimensions: {}x{} | type: {} | size: {}Kb",
-                    self.image.path,
-                    self.image.ow,
-                    self.image.oh,
-                    self.image.format,
-                    self.image.size
-                )
-                .as_bytes(),
+            self.conn.create_pixmap(
+                self.screen.root_depth,
+                self.state.pms.font_buffer,
+                self.screen.root,
+                self.file_info.width as u16,
+                self.file_info.height,
             )?;
-        };
+
+            self.conn.render_create_picture(
+                self.state.pics.font_buffer,
+                self.state.pms.font_buffer,
+                self.vis_info.root.pict_format,
+                &CreatePictureAux::default()
+                    .polyedge(PolyEdge::SMOOTH)
+                    .polymode(PolyMode::IMPRECISE),
+            )?;
+
+            self.conn.render_create_picture(
+                self.state.pics.buffer,
+                self.state.pms.buffer,
+                self.vis_info.root.pict_format,
+                &CreatePictureAux::default().repeat(Repeat::NORMAL),
+            )?;
+
+            self.font_drawer
+                .draw(self.conn, &self.state, &self.file_info, 0, 0)?;
+
+            self.conn.render_free_picture(self.state.pics.font_buffer)?;
+            self.conn.render_free_picture(self.state.pics.buffer)?;
+            self.conn.free_pixmap(self.state.pms.font_buffer)?;
+        }
         Ok(())
-    }
-
-    fn calc_image_draw_info(&self) -> Result<DrawInfo> {
-        let attrs = self.conn.get_geometry(self.state.window)?.reply()?;
-        let (parent_w, parent_h) = (attrs.width, attrs.height);
-        let (cx, cy) = (parent_w as i16 / 2, parent_h as i16 / 2);
-
-        let child_x = cx - (self.image.w as i16 / 2);
-        let child_y = cy - (self.image.h as i16 / 2);
-
-        let (child_x, parent_x, child_w) = if self.image.w > parent_w {
-            (child_x.abs(), 0, parent_w)
-        } else {
-            (0, child_x, self.image.w)
-        };
-        let (child_y, parent_y, child_h) = if self.image.h > parent_h {
-            (child_y.abs(), 0, parent_h)
-        } else {
-            (0, child_y, self.image.h)
-        };
-
-        let info = DrawInfo {
-            child: Rectangle {
-                x: child_x,
-                y: child_y,
-                width: child_w,
-                height: child_h,
-            },
-            parent: Rectangle {
-                x: parent_x,
-                y: parent_y,
-                width: parent_w,
-                height: parent_h,
-            },
-        };
-
-        mevi_info!("{info}");
-
-        Ok(info)
     }
 }

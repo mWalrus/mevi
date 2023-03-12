@@ -88,6 +88,15 @@ impl MeviImage {
     }
 }
 
+impl ToString for MeviImage {
+    fn to_string(&self) -> String {
+        format!(
+            "path: {} | dimensions: {}x{} | type: {} | size: {}Kb",
+            self.path, self.ow, self.oh, self.format, self.size
+        )
+    }
+}
+
 pub fn get_bg_image(conn: &RustConnection, pixel_layout: PixelLayout) -> Result<Image<'static>> {
     let bytes = include_bytes!("../resources/transparent-bg-smaller.png");
 

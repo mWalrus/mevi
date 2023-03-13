@@ -33,7 +33,7 @@ impl FontDrawer {
             PictOp::SRC,
             state.pics.font_buffer,
             string.fg,
-            &[Rect::new(1, 1, (string.width + text_x) as u16, string.height).into()],
+            &[Rect::new(0, text_y, (string.width + text_x) as u16, string.height).into()],
         )?;
         let fill_area = Rect::new(0, 0, (string.width + (text_x * 2)) as u16, string.height);
         conn.render_fill_rectangles(

@@ -7,7 +7,7 @@ use x11rb::{
     rust_connection::{ConnectionError, ReplyOrIdError, RustConnection},
 };
 
-const FONT_SIZE: f32 = 12.0;
+const FONT_SIZE: f32 = 13.0;
 
 #[derive(Error, Debug)]
 pub enum FontError {

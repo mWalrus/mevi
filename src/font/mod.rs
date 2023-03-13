@@ -56,7 +56,7 @@ impl FontDrawer {
             &[fill_area.into()],
         )?;
         let mut offset_y = 0;
-        for line in string.lines.iter() {
+        for line in &string.lines {
             let mut offset = fill_area.x + text_x;
             for chunk in &line.chunks {
                 let box_shift = chunk.font_height / 2;

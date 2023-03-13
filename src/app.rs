@@ -1,13 +1,12 @@
 use crate::event::MeviEvent;
 use crate::font::loader::LoadedFont;
-use crate::font::{FontDrawer, RenderString};
+use crate::font::{FontDrawer, RenderString, ToRenderLine};
 use crate::img::MeviImage;
 use crate::menu::{Menu, MenuAction};
 use crate::screen::RenderVisualInfo;
 use crate::state::MeviState;
 use crate::util::{
-    DrawInfo, BLACK_RENDER_COLOR, GRAY_COLOR, GRAY_RENDER_COLOR, INITIAL_SIZE, TITLE,
-    WHITE_RENDER_COLOR,
+    DrawInfo, GRAY_COLOR, GRAY_RENDER_COLOR, INITIAL_SIZE, TITLE, WHITE_RENDER_COLOR,
 };
 use crate::{Atoms, CLI};
 use anyhow::Result;
@@ -174,19 +173,14 @@ impl<'a> Mevi<'a> {
         let font = LoadedFont::new(conn, vis_info.render.pict_format)?;
         let font_drawer = FontDrawer::new(font);
 
-        let image_info = image.to_string();
-        let file_info = RenderString::new(
-            &font_drawer,
-            image_info,
-            GRAY_RENDER_COLOR,
-            WHITE_RENDER_COLOR,
-        );
+        let image_info = image.to_lines(&font_drawer);
+        let file_info = RenderString::new(image_info, GRAY_RENDER_COLOR, WHITE_RENDER_COLOR);
         conn.create_pixmap(
             screen.root_depth,
             state.pms.font_buffer,
             screen.root,
-            file_info.width as u16,
-            file_info.height,
+            file_info.total_width as u16,
+            file_info.total_height,
         )?;
 
         conn.render_create_picture(

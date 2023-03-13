@@ -33,28 +33,43 @@ impl FontDrawer {
             PictOp::SRC,
             state.pics.font_buffer,
             string.fg,
-            &[Rect::new(0, text_y, (string.width + text_x) as u16, string.height).into()],
+            &[Rect::new(
+                0,
+                text_y,
+                (string.total_width + text_x) as u16,
+                string.total_height,
+            )
+            .into()],
         )?;
-        let fill_area = Rect::new(0, 0, (string.width + (text_x * 2)) as u16, string.height);
+        let fill_area = Rect::new(
+            0,
+            0,
+            (string.total_width + (text_x * 2)) as u16,
+            string.total_height,
+        );
         conn.render_fill_rectangles(
             PictOp::SRC,
             state.pics.buffer,
             string.bg,
             &[fill_area.into()],
         )?;
-        let mut offset = fill_area.x + text_x;
-        for chunk in &string.chunks {
-            let box_shift = (fill_area.h as i16 - chunk.font_height) / 2;
-            self.draw_glyphs(
-                conn,
-                offset,
-                text_y + box_shift,
-                chunk.glyph_set,
-                state,
-                &chunk.glyph_ids,
-            )?;
+        let mut offset_y = 0;
+        for line in string.lines.iter() {
+            let mut offset = fill_area.x + text_x;
+            for chunk in &line.chunks {
+                let box_shift = chunk.font_height / 2;
+                self.draw_glyphs(
+                    conn,
+                    offset,
+                    text_y + box_shift + offset_y,
+                    chunk.glyph_set,
+                    state,
+                    &chunk.glyph_ids,
+                )?;
 
-            offset += chunk.width;
+                offset += chunk.width;
+            }
+            offset_y += line.height as i16;
         }
         Ok(())
     }
@@ -99,25 +114,54 @@ impl FontDrawer {
     }
 }
 
+pub struct RenderLine {
+    chunks: Vec<FontEncodedChunk>,
+    width: i16,
+    height: u16,
+}
+
+impl RenderLine {
+    pub fn new(drawer: &FontDrawer, text: impl ToString) -> Self {
+        let text = text.to_string();
+        let (width, height) = drawer.geometry(&text);
+        let chunks = drawer.font.encode(&text, width - 1);
+        Self {
+            chunks,
+            width,
+            height,
+        }
+    }
+
+    pub fn line_height(&self) -> u16 {
+        self.height
+    }
+}
+
+pub trait ToRenderLine {
+    fn to_lines(&self, font_drawer: &FontDrawer) -> Vec<RenderLine>;
+}
+
 pub struct RenderString {
-    pub text: String,
-    pub chunks: Vec<FontEncodedChunk>,
-    pub width: i16,
-    pub height: u16,
+    pub lines: Vec<RenderLine>,
+    pub total_width: i16,
+    pub total_height: u16,
     pub bg: Color,
     pub fg: Color,
 }
 
 impl RenderString {
-    pub fn new(drawer: &FontDrawer, text: impl ToString, bg: Color, fg: Color) -> Self {
-        let text = text.to_string();
-        let (width, height) = drawer.geometry(&text);
-        let chunks = drawer.font.encode(&text, width - 1);
+    pub fn new(lines: Vec<RenderLine>, bg: Color, fg: Color) -> Self {
+        let mut total_width = 0;
+        for line in lines.iter() {
+            if line.width > total_width {
+                total_width = line.width;
+            }
+        }
+        let total_height = lines[0].line_height() * lines.len() as u16;
         Self {
-            text: text.to_string(),
-            chunks,
-            width,
-            height,
+            lines,
+            total_width,
+            total_height,
             bg,
             fg,
         }

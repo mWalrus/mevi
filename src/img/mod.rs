@@ -10,6 +10,8 @@ use x11rb::{
     rust_connection::RustConnection,
 };
 
+use crate::font::{FontDrawer, RenderLine, ToRenderLine};
+
 lazy_static! {
     static ref FOREIGN_PIXEL_LAYOUT: PixelLayout = PixelLayout::new(
         ColorComponent::new(8, 0).unwrap(),
@@ -88,12 +90,14 @@ impl MeviImage {
     }
 }
 
-impl ToString for MeviImage {
-    fn to_string(&self) -> String {
-        format!(
-            "path: {} | dimensions: {}x{} | type: {} | size: {}Kb",
-            self.path, self.ow, self.oh, self.format, self.size
-        )
+impl ToRenderLine for MeviImage {
+    fn to_lines(&self, font_drawer: &FontDrawer) -> Vec<RenderLine> {
+        vec![
+            RenderLine::new(font_drawer, format!("path: {}", self.path)),
+            RenderLine::new(font_drawer, format!("dimensions: {}x{}", self.ow, self.oh)),
+            RenderLine::new(font_drawer, format!("type: {}", self.format)),
+            RenderLine::new(font_drawer, format!("size: {}Kb", self.size)),
+        ]
     }
 }
 

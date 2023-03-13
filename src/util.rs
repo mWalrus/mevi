@@ -29,6 +29,7 @@ pub static WHITE_RENDER_COLOR: Color = Color {
     blue: 0xffff,
     alpha: 0xffff,
 };
+
 pub static BLACK_RENDER_COLOR: Color = Color {
     red: 0x0000,
     green: 0x0000,

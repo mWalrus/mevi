@@ -11,8 +11,8 @@ const FONT_SIZE: f32 = 12.0;
 
 #[derive(Error, Debug)]
 pub enum FontError {
-    #[error("Failed to load font data")]
-    LoadFromBytes,
+    #[error("Failed to load font data: {0}")]
+    LoadFromBytes(&'static str),
     #[error("Failed to create glyphset: {0:?}")]
     CreateGlyphset(#[from] ConnectionError),
     #[error("Failed to create glyphset ID: {0:?}")]
@@ -46,7 +46,7 @@ impl LoadedFont {
             scale: FONT_SIZE,
             ..Default::default()
         };
-        let font = Font::from_bytes(font, settings).map_err(|_| FontError::LoadFromBytes)?;
+        let font = Font::from_bytes(font, settings).map_err(FontError::LoadFromBytes)?;
 
         let gsid = conn.generate_id()?;
         conn.render_create_glyph_set(gsid, pict_format)?;

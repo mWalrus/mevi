@@ -1,5 +1,6 @@
 use crate::{
     event::MenuEvent,
+    state::MeviState,
     util::{GRAY_COLOR, MENU_ITEM_HEIGHT},
     xy_in_rect,
 };
@@ -75,27 +76,17 @@ impl MenuItem {
 }
 
 impl Menu {
-    pub fn create(
-        conn: &RustConnection,
-        screen: &Screen,
-        font_gc1: Gcontext,
-        font_gc2: Gcontext,
-        parent_id: u32,
-    ) -> Result<Self> {
-        let id = conn.generate_id()?;
-        let selected_gc = conn.generate_id()?;
-        let normal_gc = conn.generate_id()?;
-
+    pub fn create(conn: &RustConnection, screen: &Screen, state: &MeviState) -> Result<Self> {
         conn.create_gc(
-            selected_gc,
-            parent_id,
+            state.gcs.menu_selected,
+            state.window,
             &CreateGCAux::default()
                 .graphics_exposures(0)
                 .foreground(GRAY_COLOR),
         )?;
         conn.create_gc(
-            normal_gc,
-            parent_id,
+            state.gcs.menu,
+            state.window,
             &CreateGCAux::default()
                 .graphics_exposures(0)
                 .foreground(screen.white_pixel),
@@ -116,15 +107,15 @@ impl Menu {
         let height = items.len() as u16 * MENU_ITEM_HEIGHT;
 
         let menu = Self {
-            id,
-            parent_id,
+            id: state.menu,
+            parent_id: state.window,
             depth: screen.root_depth,
             bg: screen.white_pixel,
             fg: screen.black_pixel,
-            gc1: normal_gc,
-            gc2: selected_gc,
-            font_gc1,
-            font_gc2,
+            gc1: state.gcs.menu,
+            gc2: state.gcs.menu_selected,
+            font_gc1: state.gcs.font,
+            font_gc2: state.gcs.font_selected,
             visible: false,
             items,
             selected: Some(0),

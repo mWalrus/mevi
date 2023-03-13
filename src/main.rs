@@ -1,4 +1,5 @@
 mod cli;
+mod font;
 mod img;
 mod keys;
 #[macro_use]
@@ -45,7 +46,7 @@ fn main() -> Result<()> {
 
     let screen = &conn.setup().roots[screen_num];
 
-    let pixel_layout = screen::check_visual(screen, screen.root_visual);
+    let pixel_layout = screen::pixel_layout_from_visual(screen, screen.root_visual)?;
 
     let image = MeviImage::new(&conn, screen, &CLI.path, pixel_layout)?;
 

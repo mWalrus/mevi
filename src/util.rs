@@ -2,24 +2,31 @@ use std::fmt::Display;
 
 use anyhow::Result;
 use x11rb::{
+    connection::Connection,
     protocol::{
-        render::Color,
-        xproto::{ConnectionExt, Rectangle},
+        render::{Color, ConnectionExt as _, CreatePictureAux, Picture, Repeat},
+        xproto::{ConnectionExt, Pixmap, Rectangle, Window},
     },
     rust_connection::RustConnection,
 };
 
-use crate::{img::MeviImage, state::MeviState};
+use crate::{img::MeviImage, screen::RenderVisualInfo, state::MeviState};
 
 pub static TITLE: &str = "mevi";
 pub static GRAY_COLOR: u32 = 0x3b3b3b;
 pub static INITIAL_SIZE: (u16, u16) = (600, 800);
-pub static MENU_ITEM_HEIGHT: u16 = 20;
 
 pub static GRAY_RENDER_COLOR: Color = Color {
     red: 0x3b3b,
     green: 0x3b3b,
     blue: 0x3b3b,
+    alpha: 0xffff,
+};
+
+pub static LIGHT_GRAY_RENDER_COLOR: Color = Color {
+    red: 0x6666,
+    green: 0x6666,
+    blue: 0x6666,
     alpha: 0xffff,
 };
 
@@ -60,6 +67,65 @@ impl From<Rect> for Rectangle {
             width: r.w,
             height: r.h,
         }
+    }
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct StatefulRenderPicture {
+    pub active: RenderPicture,
+    pub inactive: RenderPicture,
+}
+
+#[derive(Debug, Clone, Copy)]
+pub struct RenderPicture {
+    pub picture: Picture,
+    pub fg: Color,
+    pub bg: Color,
+}
+
+impl StatefulRenderPicture {
+    pub fn new(
+        conn: &RustConnection,
+        vis_info: &RenderVisualInfo,
+        parent_id: Window,
+        parent_w: u16,
+        h: u16,
+    ) -> Result<Self> {
+        let active_pm = conn.generate_id()?;
+        let active_pict = conn.generate_id()?;
+        let inactive_pm = conn.generate_id()?;
+        let inactive_pict = conn.generate_id()?;
+
+        conn.create_pixmap(vis_info.root.depth, active_pm, parent_id, parent_w, h)?;
+
+        conn.render_create_picture(
+            active_pict,
+            active_pm,
+            vis_info.root.pict_format,
+            &CreatePictureAux::default().repeat(Repeat::NORMAL),
+        )?;
+
+        conn.create_pixmap(vis_info.root.depth, inactive_pm, parent_id, parent_w, h)?;
+
+        conn.render_create_picture(
+            inactive_pict,
+            inactive_pm,
+            vis_info.root.pict_format,
+            &CreatePictureAux::default().repeat(Repeat::NORMAL),
+        )?;
+
+        Ok(Self {
+            active: RenderPicture {
+                picture: active_pict,
+                fg: WHITE_RENDER_COLOR,
+                bg: LIGHT_GRAY_RENDER_COLOR,
+            },
+            inactive: RenderPicture {
+                picture: inactive_pict,
+                fg: WHITE_RENDER_COLOR,
+                bg: GRAY_RENDER_COLOR,
+            },
+        })
     }
 }
 

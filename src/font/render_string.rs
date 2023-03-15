@@ -2,6 +2,7 @@ use x11rb::protocol::render::Color;
 
 use super::{loader::FontEncodedChunk, FontDrawer};
 
+#[derive(Debug, Clone)]
 pub struct RenderLine {
     pub chunks: Vec<FontEncodedChunk>,
     pub width: i16,
@@ -25,17 +26,20 @@ pub trait ToRenderLine {
     fn to_lines(&self, font_drawer: &FontDrawer) -> Vec<RenderLine>;
 }
 
+#[derive(Debug, Clone)]
 pub struct RenderString {
     pub lines: Vec<RenderLine>,
     pub line_gap: u16,
     pub total_width: i16,
     pub total_height: u16,
+    pub vpad: u16,
+    pub hpad: i16,
     pub bg: Color,
     pub fg: Color,
 }
 
 impl RenderString {
-    pub fn new(lines: Vec<RenderLine>, line_gap: Option<u16>, bg: Color, fg: Color) -> Self {
+    pub fn new(lines: Vec<RenderLine>, line_gap: u16, bg: Color, fg: Color) -> Self {
         let mut total_width = 0;
         for line in lines.iter() {
             if line.width > total_width {
@@ -45,15 +49,27 @@ impl RenderString {
         let total_height = lines[0].height * lines.len() as u16;
         Self {
             lines,
-            line_gap: line_gap.unwrap_or(0),
+            line_gap,
             total_width,
             total_height,
+            vpad: 0,
+            hpad: 0,
             bg,
             fg,
         }
     }
 
-    pub fn box_height(&self, padding: u16) -> u16 {
-        self.total_height + (self.lines.len() as u16 * self.line_gap) + (padding * 2)
+    pub fn pad(mut self, pad: u16) -> Self {
+        self.hpad = pad as i16;
+        self.vpad = pad;
+        self
+    }
+
+    pub fn box_height(&self) -> u16 {
+        self.total_height + ((self.lines.len() as u16 - 1) * self.line_gap) + (self.vpad * 2)
+    }
+
+    pub fn box_width(&self) -> i16 {
+        self.total_width + (self.hpad * 2)
     }
 }

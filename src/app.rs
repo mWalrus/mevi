@@ -1,3 +1,5 @@
+use std::rc::Rc;
+
 use crate::event::MeviEvent;
 use crate::font::loader::LoadedFont;
 use crate::font::{FontDrawer, RenderString, ToRenderLine};
@@ -5,9 +7,7 @@ use crate::img::MeviImage;
 use crate::menu::{Menu, MenuAction};
 use crate::screen::RenderVisualInfo;
 use crate::state::MeviState;
-use crate::util::{
-    DrawInfo, GRAY_COLOR, GRAY_RENDER_COLOR, INITIAL_SIZE, TITLE, WHITE_RENDER_COLOR,
-};
+use crate::util::{DrawInfo, GRAY_RENDER_COLOR, INITIAL_SIZE, TITLE, WHITE_RENDER_COLOR};
 use crate::{Atoms, CLI};
 use anyhow::Result;
 use x11rb::connection::Connection;
@@ -24,10 +24,10 @@ pub struct Mevi<'a> {
     pub atoms: Atoms,
     conn: &'a RustConnection,
     screen: &'a Screen,
-    vis_info: RenderVisualInfo,
+    vis_info: Rc<RenderVisualInfo>,
     file_info: RenderString,
     pub state: MeviState,
-    pub font_drawer: FontDrawer,
+    pub font_drawer: Rc<FontDrawer>,
     image: MeviImage,
     needs_redraw: bool,
     pub menu: Menu,
@@ -49,29 +49,6 @@ impl<'a> Mevi<'a> {
 
         let path = CLI.path.to_string_lossy().to_string();
         let title = format!("{TITLE} - {path}");
-
-        let font = conn.generate_id()?;
-        conn.open_font(font, "fixed".as_bytes())?;
-
-        conn.create_gc(
-            state.gcs.font,
-            screen.root,
-            &CreateGCAux::default()
-                .font(font)
-                .foreground(screen.black_pixel)
-                .background(screen.white_pixel),
-        )?;
-
-        conn.create_gc(
-            state.gcs.font_selected,
-            screen.root,
-            &CreateGCAux::default()
-                .font(font)
-                .foreground(screen.white_pixel)
-                .background(GRAY_COLOR),
-        )?;
-
-        conn.close_font(font)?;
 
         conn.create_pixmap(
             screen.root_depth,
@@ -167,15 +144,22 @@ impl<'a> Mevi<'a> {
         conn.map_window(state.window)?;
         conn.flush()?;
 
-        let vis_info = RenderVisualInfo::new(conn, screen)?;
+        let vis_info = Rc::new(RenderVisualInfo::new(conn, screen)?);
 
-        let menu = Menu::create(conn, screen, &state)?;
         let font = LoadedFont::new(conn, vis_info.render.pict_format)?;
-        let font_drawer = FontDrawer::new(font);
+        let font_drawer = Rc::new(FontDrawer::new(font));
+
+        let menu = Menu::create(
+            conn,
+            screen,
+            &state,
+            Rc::clone(&vis_info),
+            Rc::clone(&font_drawer),
+        )?;
 
         let image_info = image.to_lines(&font_drawer);
         let file_info =
-            RenderString::new(image_info, Some(5), GRAY_RENDER_COLOR, WHITE_RENDER_COLOR);
+            RenderString::new(image_info, 5, GRAY_RENDER_COLOR, WHITE_RENDER_COLOR).pad(5);
         conn.create_pixmap(
             screen.root_depth,
             state.pms.font_buffer,
@@ -310,8 +294,15 @@ impl<'a> Mevi<'a> {
                 &CreatePictureAux::default().repeat(Repeat::NORMAL),
             )?;
 
-            self.font_drawer
-                .draw(self.conn, &self.state, &self.file_info, 5, 5)?;
+            self.font_drawer.draw(
+                self.conn,
+                self.state.pics.font_buffer,
+                self.state.pics.buffer,
+                &self.file_info,
+                None,
+                0,
+                0,
+            )?;
 
             self.conn.render_free_picture(self.state.pics.buffer)?;
         }

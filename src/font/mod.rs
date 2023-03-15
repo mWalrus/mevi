@@ -2,11 +2,11 @@ pub mod loader;
 pub mod render_string;
 
 use self::loader::LoadedFont;
-use crate::{state::MeviState, util::Rect};
+use crate::util::Rect;
 use anyhow::Result;
 pub use render_string::{RenderLine, RenderString, ToRenderLine};
 use x11rb::{
-    protocol::render::{ConnectionExt, Glyphset, PictOp},
+    protocol::render::{ConnectionExt, Glyphset, PictOp, Picture},
     rust_connection::RustConnection,
 };
 
@@ -22,41 +22,46 @@ impl FontDrawer {
     pub fn draw(
         &self,
         conn: &RustConnection,
-        state: &MeviState,
+        src: Picture,
+        dst: Picture,
         string: &RenderString,
-        padding_x: i16,
-        padding_y: u16,
+        alt_width: Option<i16>,
+        x: i16,
+        y: i16,
     ) -> Result<()> {
-        let height = string.box_height(padding_y);
+        let height = string.box_height();
+        let width = string.box_width();
         conn.render_fill_rectangles(
             PictOp::SRC,
-            state.pics.font_buffer,
+            src,
             string.fg,
-            &[Rect::new(0, 0, (string.total_width + padding_x) as u16, height).into()],
+            &[Rect::new(
+                x,
+                y,
+                (string.hpad + string.total_width) as u16,
+                string.vpad as u16 + string.total_height,
+            )
+            .into()],
         )?;
-        let fill_area = Rect::new(0, 0, (string.total_width + (padding_x * 2)) as u16, height);
-        conn.render_fill_rectangles(
-            PictOp::SRC,
-            state.pics.buffer,
-            string.bg,
-            &[fill_area.into()],
-        )?;
-        let mut offset_y = padding_y;
+        let fill_area = Rect::new(x, y, alt_width.unwrap_or(width) as u16, height);
+        conn.render_fill_rectangles(PictOp::SRC, dst, string.bg, &[fill_area.into()])?;
+        let mut offset_y = y;
         for line in &string.lines {
-            let mut offset_x = fill_area.x + padding_x;
+            let mut offset_x = fill_area.x + x + string.hpad as i16;
             for chunk in &line.chunks {
                 self.draw_glyphs(
                     conn,
                     offset_x,
                     offset_y as i16,
                     chunk.glyph_set,
-                    state,
+                    src,
+                    dst,
                     &chunk.glyph_ids,
                 )?;
 
                 offset_x += chunk.width;
             }
-            offset_y += line.height + string.line_gap;
+            offset_y += (line.height + string.line_gap) as i16;
         }
         Ok(())
     }
@@ -67,7 +72,8 @@ impl FontDrawer {
         x: i16,
         y: i16,
         glyphs: Glyphset,
-        state: &MeviState,
+        src: Picture,
+        dst: Picture,
         glyph_ids: &[u32],
     ) -> Result<()> {
         let mut buf = Vec::with_capacity(glyph_ids.len());
@@ -86,16 +92,7 @@ impl FontDrawer {
             buf.extend_from_slice(&(glyph).to_ne_bytes());
         }
 
-        conn.render_composite_glyphs16(
-            PictOp::OVER,
-            state.pics.font_buffer,
-            state.pics.buffer,
-            0,
-            glyphs,
-            0,
-            0,
-            &buf,
-        )?;
+        conn.render_composite_glyphs16(PictOp::OVER, src, dst, 0, glyphs, 0, 0, &buf)?;
 
         Ok(())
     }

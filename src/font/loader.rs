@@ -32,6 +32,7 @@ pub struct CharInfo {
     pub height: u16,
 }
 
+#[derive(Debug, Clone)]
 pub struct FontEncodedChunk {
     pub width: i16,
     pub font_height: i16,

@@ -30,6 +30,7 @@ pub static WHITE_RENDER_COLOR: Color = Color {
     alpha: 0xffff,
 };
 
+#[allow(unused)]
 pub static BLACK_RENDER_COLOR: Color = Color {
     red: 0x0000,
     green: 0x0000,

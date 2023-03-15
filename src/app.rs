@@ -174,7 +174,8 @@ impl<'a> Mevi<'a> {
         let font_drawer = FontDrawer::new(font);
 
         let image_info = image.to_lines(&font_drawer);
-        let file_info = RenderString::new(image_info, GRAY_RENDER_COLOR, WHITE_RENDER_COLOR);
+        let file_info =
+            RenderString::new(image_info, Some(5), GRAY_RENDER_COLOR, WHITE_RENDER_COLOR);
         conn.create_pixmap(
             screen.root_depth,
             state.pms.font_buffer,
@@ -310,7 +311,7 @@ impl<'a> Mevi<'a> {
             )?;
 
             self.font_drawer
-                .draw(self.conn, &self.state, &self.file_info, 5, 0)?;
+                .draw(self.conn, &self.state, &self.file_info, 5, 5)?;
 
             self.conn.render_free_picture(self.state.pics.buffer)?;
         }

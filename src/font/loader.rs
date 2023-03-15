@@ -124,7 +124,7 @@ impl LoadedFont {
                 }
             }
         }
-        (width, height + (height / 2) + 5)
+        (width, height)
     }
 
     pub fn encode(&self, text: &str, max_width: i16) -> Vec<FontEncodedChunk> {

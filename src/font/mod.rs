@@ -19,59 +19,44 @@ impl FontDrawer {
         Self { font }
     }
 
-    pub fn geometry(&self, text: &str) -> (i16, u16) {
-        self.font.geometry(text)
-    }
-
     pub fn draw(
         &self,
         conn: &RustConnection,
         state: &MeviState,
         string: &RenderString,
-        text_x: i16,
-        text_y: i16,
+        padding_x: i16,
+        padding_y: u16,
     ) -> Result<()> {
+        let height = string.box_height(padding_y);
         conn.render_fill_rectangles(
             PictOp::SRC,
             state.pics.font_buffer,
             string.fg,
-            &[Rect::new(
-                0,
-                text_y,
-                (string.total_width + text_x) as u16,
-                string.total_height,
-            )
-            .into()],
+            &[Rect::new(0, 0, (string.total_width + padding_x) as u16, height).into()],
         )?;
-        let fill_area = Rect::new(
-            0,
-            0,
-            (string.total_width + (text_x * 2)) as u16,
-            string.total_height,
-        );
+        let fill_area = Rect::new(0, 0, (string.total_width + (padding_x * 2)) as u16, height);
         conn.render_fill_rectangles(
             PictOp::SRC,
             state.pics.buffer,
             string.bg,
             &[fill_area.into()],
         )?;
-        let mut offset_y = 0;
+        let mut offset_y = padding_y;
         for line in &string.lines {
-            let mut offset = fill_area.x + text_x;
+            let mut offset_x = fill_area.x + padding_x;
             for chunk in &line.chunks {
-                let box_shift = chunk.font_height / 2;
                 self.draw_glyphs(
                     conn,
-                    offset,
-                    text_y + box_shift + offset_y,
+                    offset_x,
+                    offset_y as i16,
                     chunk.glyph_set,
                     state,
                     &chunk.glyph_ids,
                 )?;
 
-                offset += chunk.width;
+                offset_x += chunk.width;
             }
-            offset_y += line.height as i16;
+            offset_y += line.height + string.line_gap;
         }
         Ok(())
     }

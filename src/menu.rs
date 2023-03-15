@@ -90,8 +90,7 @@ impl MenuItem {
             parent_pict,
             &self.text,
             Some(parent_w as i16),
-            self.rect.x,
-            self.rect.y,
+            (self.rect.x, self.rect.y),
         )?;
         Ok(())
     }

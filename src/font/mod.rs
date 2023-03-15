@@ -26,8 +26,7 @@ impl FontDrawer {
         dst: Picture,
         string: &RenderString,
         alt_width: Option<i16>,
-        x: i16,
-        y: i16,
+        (x, y): (i16, i16),
     ) -> Result<()> {
         let height = string.box_height();
         let width = string.box_width();
@@ -39,7 +38,7 @@ impl FontDrawer {
                 x,
                 y,
                 (string.hpad + string.total_width) as u16,
-                string.vpad as u16 + string.total_height,
+                string.vpad + string.total_height,
             )
             .into()],
         )?;
@@ -47,12 +46,11 @@ impl FontDrawer {
         conn.render_fill_rectangles(PictOp::SRC, dst, string.bg, &[fill_area.into()])?;
         let mut offset_y = y;
         for line in &string.lines {
-            let mut offset_x = fill_area.x + x + string.hpad as i16;
+            let mut offset_x = fill_area.x + x + string.hpad;
             for chunk in &line.chunks {
                 self.draw_glyphs(
                     conn,
-                    offset_x,
-                    offset_y as i16,
+                    (offset_x, offset_y),
                     chunk.glyph_set,
                     src,
                     dst,
@@ -69,8 +67,7 @@ impl FontDrawer {
     fn draw_glyphs(
         &self,
         conn: &RustConnection,
-        x: i16,
-        y: i16,
+        (x, y): (i16, i16),
         glyphs: Glyphset,
         src: Picture,
         dst: Picture,

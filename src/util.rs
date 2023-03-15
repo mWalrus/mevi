@@ -5,7 +5,7 @@ use x11rb::{
     connection::Connection,
     protocol::{
         render::{Color, ConnectionExt as _, CreatePictureAux, Picture, Repeat},
-        xproto::{ConnectionExt, Pixmap, Rectangle, Window},
+        xproto::{ConnectionExt, Rectangle, Window},
     },
     rust_connection::RustConnection,
 };

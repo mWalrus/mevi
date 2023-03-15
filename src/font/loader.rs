@@ -63,12 +63,12 @@ impl LoadedFont {
             data.push((c, metrics, bitmaps))
         }
 
-        let mut id = 0u32;
         let mut ids = vec![];
         let mut infos = vec![];
         let mut raw_data = vec![];
         let mut char_map: Map<char, CharInfo> = Map::new();
-        for (c, metrics, bitmaps) in data {
+        for (id, (c, metrics, bitmaps)) in data.into_iter().enumerate() {
+            let id = id as u32;
             for byte in bitmaps {
                 raw_data.extend_from_slice(&[byte, byte, byte, byte]);
             }
@@ -101,8 +101,6 @@ impl LoadedFont {
                 infos.clear();
                 raw_data.clear();
             }
-
-            id += 1;
         }
         conn.render_add_glyphs(gsid, &ids, &infos, &raw_data)?;
 
@@ -146,16 +144,14 @@ impl LoadedFont {
                     });
                 }
 
-                if total_width + lchar.horizontal_space > max_width {
-                    if !cur_glyphs.is_empty() {
-                        chunks.push(FontEncodedChunk {
-                            width: cur_width,
-                            font_height: self.font_height,
-                            glyph_set: self.gsid,
-                            glyph_ids: cur_glyphs,
-                        });
-                        return chunks;
-                    }
+                if total_width + lchar.horizontal_space > max_width && !cur_glyphs.is_empty() {
+                    chunks.push(FontEncodedChunk {
+                        width: cur_width,
+                        font_height: self.font_height,
+                        glyph_set: self.gsid,
+                        glyph_ids: cur_glyphs,
+                    });
+                    return chunks;
                 }
 
                 total_width += lchar.horizontal_space;

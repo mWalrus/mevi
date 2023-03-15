@@ -22,10 +22,6 @@ pub struct Gcs {
     pub buffer: Gcontext,
     pub background: Gcontext,
     pub tile: Gcontext,
-    pub font: Gcontext,
-    pub font_selected: Gcontext,
-    pub menu: Gcontext,
-    pub menu_selected: Gcontext,
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -57,10 +53,6 @@ impl MeviState {
             buffer: conn.generate_id()?,
             background: conn.generate_id()?,
             tile: conn.generate_id()?,
-            font: conn.generate_id()?,
-            font_selected: conn.generate_id()?,
-            menu: conn.generate_id()?,
-            menu_selected: conn.generate_id()?,
         };
         let pics = Pics {
             window: conn.generate_id()?,

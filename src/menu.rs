@@ -4,8 +4,7 @@ use crate::{
     event::MenuEvent,
     font::{FontDrawer, RenderLine, RenderString},
     screen::RenderVisualInfo,
-    state::MeviState,
-    util::{Rect, StatefulRenderPicture, GRAY_COLOR, GRAY_RENDER_COLOR, WHITE_RENDER_COLOR},
+    util::{Rect, StatefulRenderPicture, GRAY_RENDER_COLOR, WHITE_RENDER_COLOR},
     xy_in_rect,
 };
 use anyhow::Result;
@@ -14,8 +13,8 @@ use x11rb::{
     protocol::{
         render::{ConnectionExt as _, CreatePictureAux, Picture, PolyEdge, PolyMode},
         xproto::{
-            ConfigureWindowAux, ConnectionExt, CreateGCAux, CreateWindowAux, Rectangle, Screen,
-            Window, WindowClass,
+            ConfigureWindowAux, ConnectionExt, CreateWindowAux, Rectangle, Screen, Window,
+            WindowClass,
         },
     },
     rust_connection::RustConnection,
@@ -67,32 +66,24 @@ impl MenuItem {
         })
     }
 
-    pub fn draw(
-        &mut self,
-        conn: &RustConnection,
-        font_drawer: &FontDrawer,
-        parent_pict: Picture,
-        parent_w: u16,
-        selected: bool,
-    ) -> Result<()> {
-        let pict = if selected {
-            self.text.fg = self.render_picture.active.fg;
-            self.text.bg = self.render_picture.active.bg;
+    fn set_active(&mut self) {
+        self.text.fg = self.render_picture.active.fg;
+        self.text.bg = self.render_picture.active.bg;
+    }
+
+    fn set_inactive(&mut self) {
+        self.text.fg = self.render_picture.inactive.fg;
+        self.text.bg = self.render_picture.inactive.bg;
+    }
+
+    pub fn get_picture(&mut self, selected: bool) -> Picture {
+        if selected {
+            self.set_active();
             self.render_picture.active.picture
         } else {
-            self.text.fg = self.render_picture.inactive.fg;
-            self.text.bg = self.render_picture.inactive.bg;
+            self.set_inactive();
             self.render_picture.inactive.picture
-        };
-        font_drawer.draw(
-            conn,
-            pict,
-            parent_pict,
-            &self.text,
-            Some(parent_w as i16),
-            (self.rect.x, self.rect.y),
-        )?;
-        Ok(())
+        }
     }
 }
 
@@ -100,25 +91,11 @@ impl Menu {
     pub fn create(
         conn: &RustConnection,
         screen: &Screen,
-        state: &MeviState,
+        parent: Window,
         vis_info: Rc<RenderVisualInfo>,
         font_drawer: Rc<FontDrawer>,
     ) -> Result<Self> {
-        conn.create_gc(
-            state.gcs.menu_selected,
-            state.window,
-            &CreateGCAux::default()
-                .graphics_exposures(0)
-                .foreground(GRAY_COLOR),
-        )?;
-        conn.create_gc(
-            state.gcs.menu,
-            state.window,
-            &CreateGCAux::default()
-                .graphics_exposures(0)
-                .foreground(screen.white_pixel),
-        )?;
-
+        let id = conn.generate_id()?;
         let data = [
             (
                 MenuAction::ToggleFileInfo,
@@ -155,8 +132,8 @@ impl Menu {
 
         conn.create_window(
             vis_info.root.depth,
-            state.menu,
-            state.window,
+            id,
+            parent,
             0,
             0,
             total_width,
@@ -174,7 +151,7 @@ impl Menu {
             let item = MenuItem::new(
                 conn,
                 &vis_info,
-                state.menu,
+                id,
                 total_width,
                 string,
                 action,
@@ -185,7 +162,7 @@ impl Menu {
         }
 
         let menu = Self {
-            id: state.menu,
+            id,
             pict: conn.generate_id()?,
             vis_info,
             visible: false,
@@ -265,12 +242,13 @@ impl Menu {
 
         let selected = self.selected.unwrap_or(usize::MAX);
         for (i, item) in self.items.iter_mut().enumerate() {
-            item.draw(
+            self.font_drawer.draw(
                 conn,
-                &self.font_drawer,
+                item.get_picture(i == selected),
                 self.pict,
-                self.rect.width,
-                i == selected,
+                &item.text,
+                Some(self.rect.width as i16),
+                (item.rect.x, item.rect.y),
             )?;
         }
         conn.flush()?;

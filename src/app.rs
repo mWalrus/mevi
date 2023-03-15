@@ -152,7 +152,7 @@ impl<'a> Mevi<'a> {
         let menu = Menu::create(
             conn,
             screen,
-            &state,
+            state.window,
             Rc::clone(&vis_info),
             Rc::clone(&font_drawer),
         )?;

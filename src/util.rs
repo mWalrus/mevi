@@ -1,6 +1,6 @@
-use std::fmt::Display;
-
+use crate::{img::MeviImage, screen::RenderVisualInfo, state::MeviState};
 use anyhow::Result;
+use std::fmt::Debug;
 use x11rb::{
     connection::Connection,
     protocol::{
@@ -10,10 +10,7 @@ use x11rb::{
     rust_connection::RustConnection,
 };
 
-use crate::{img::MeviImage, screen::RenderVisualInfo, state::MeviState};
-
 pub static TITLE: &str = "mevi";
-pub static GRAY_COLOR: u32 = 0x3b3b3b;
 pub static INITIAL_SIZE: (u16, u16) = (600, 800);
 
 pub static GRAY_RENDER_COLOR: Color = Color {
@@ -128,7 +125,7 @@ impl StatefulRenderPicture {
         })
     }
 }
-
+#[derive(Debug)]
 pub struct DrawInfo {
     pub child: Rect,
     pub parent: Rect,
@@ -159,19 +156,9 @@ impl DrawInfo {
             parent: Rect::new(parent_x, parent_y, parent_w, parent_h),
         };
 
-        mevi_info!("{info}");
+        mevi_info!("Calculated draw info: {info:?}");
 
         Ok(info)
-    }
-}
-
-impl Display for DrawInfo {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "draw info: (parent: {:?}, child: {:?})",
-            self.parent, self.child
-        )
     }
 }
 

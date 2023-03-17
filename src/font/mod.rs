@@ -32,14 +32,16 @@ impl FontDrawer {
         (x, y): (i16, i16),
     ) -> Result<()> {
         let (w, h) = string.box_dimensions();
+        let w = alt_width.unwrap_or(w);
 
-        let fill_area: Rectangle = Rect::new(x, y, alt_width.unwrap_or(w), h).into();
-        conn.render_fill_rectangles(PictOp::SRC, src, string.fg, &[fill_area])?;
-        conn.render_fill_rectangles(PictOp::SRC, dst, string.bg, &[fill_area])?;
+        let fg_fill_area: Rectangle = Rect::new(x, 0, w, h).into();
+        let bg_fill_area: Rectangle = Rect::new(x, y, w, h).into();
+        conn.render_fill_rectangles(PictOp::SRC, src, string.fg, &[fg_fill_area])?;
+        conn.render_fill_rectangles(PictOp::SRC, dst, string.bg, &[bg_fill_area])?;
 
         let mut offset_y = y;
         for line in &string.lines {
-            let mut offset_x = fill_area.x + x + string.hpad as i16;
+            let mut offset_x = bg_fill_area.x + x + string.hpad as i16;
             for chunk in &line.chunks {
                 self.draw_glyphs(
                     conn,

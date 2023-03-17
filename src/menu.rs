@@ -1,14 +1,21 @@
+use std::rc::Rc;
+
 use crate::{
     event::MenuEvent,
-    util::{GRAY_COLOR, MENU_ITEM_HEIGHT},
+    font::{FontDrawer, RenderLine, RenderString},
+    screen::RenderVisualInfo,
+    util::{Rect, StatefulRenderPicture, GRAY_RENDER_COLOR, WHITE_RENDER_COLOR},
     xy_in_rect,
 };
 use anyhow::Result;
 use x11rb::{
     connection::Connection,
-    protocol::xproto::{
-        ConfigureWindowAux, ConnectionExt, CreateGCAux, CreateWindowAux, Gcontext, Rectangle,
-        Screen, WindowClass,
+    protocol::{
+        render::{ConnectionExt as _, CreatePictureAux, Picture, PolyEdge, PolyMode},
+        xproto::{
+            ConfigureWindowAux, ConnectionExt, CreateWindowAux, Rectangle, Screen, Window,
+            WindowClass,
+        },
     },
     rust_connection::RustConnection,
 };
@@ -20,57 +27,63 @@ pub enum MenuAction {
     None,
 }
 
-#[derive(Debug)]
 pub struct Menu {
     id: u32,
-    parent_id: u32,
-    depth: u8,
-    bg: u32,
-    fg: u32,
-    font_gc1: Gcontext,
-    font_gc2: Gcontext,
-    gc1: Gcontext,
-    gc2: Gcontext,
+    pict: Picture,
+    vis_info: Rc<RenderVisualInfo>,
+    font_drawer: Rc<FontDrawer>,
     pub visible: bool,
-    items: [MenuItem; 2],
+    items: Vec<MenuItem>,
     pub selected: Option<usize>,
     rect: Rectangle,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone)]
 struct MenuItem {
-    name: &'static str,
-    rect: Rectangle,
+    srp: StatefulRenderPicture,
+    text: RenderString,
+    rect: Rect,
     action: MenuAction,
 }
 
 impl MenuItem {
     fn new(
-        name: &'static str,
+        conn: &RustConnection,
+        vis_info: &RenderVisualInfo,
+        parent_id: Window,
+        parent_w: u16,
+        text: RenderString,
         action: MenuAction,
-        x: i16,
-        y: i16,
-        width: u16,
-        height: u16,
-    ) -> Self {
-        Self {
-            name,
+        rect: Rect,
+    ) -> Result<Self> {
+        let (_, h) = text.box_dimensions();
+        let srp = StatefulRenderPicture::new(conn, vis_info, parent_id, parent_w, h)?;
+        Ok(Self {
+            srp,
+            text,
             action,
-            rect: Rectangle {
-                x,
-                y,
-                width,
-                height,
-            },
+            rect,
+        })
+    }
+
+    fn set_active(&mut self) {
+        self.text.fg = self.srp.active.fg;
+        self.text.bg = self.srp.active.bg;
+    }
+
+    fn set_inactive(&mut self) {
+        self.text.fg = self.srp.inactive.fg;
+        self.text.bg = self.srp.inactive.bg;
+    }
+
+    pub fn get_picture(&mut self, selected: bool) -> Picture {
+        if selected {
+            self.set_active();
+            self.srp.active.picture
+        } else {
+            self.set_inactive();
+            self.srp.inactive.picture
         }
-    }
-
-    pub fn text_position(&self) -> i16 {
-        self.rect.height as i16 - 13 / 2
-    }
-
-    fn rect(&self) -> Rectangle {
-        self.rect
     }
 }
 
@@ -78,79 +91,91 @@ impl Menu {
     pub fn create(
         conn: &RustConnection,
         screen: &Screen,
-        font_gc1: Gcontext,
-        font_gc2: Gcontext,
-        parent_id: u32,
+        parent: Window,
+        vis_info: Rc<RenderVisualInfo>,
+        font_drawer: Rc<FontDrawer>,
     ) -> Result<Self> {
         let id = conn.generate_id()?;
-        let selected_gc = conn.generate_id()?;
-        let normal_gc = conn.generate_id()?;
-
-        conn.create_gc(
-            selected_gc,
-            parent_id,
-            &CreateGCAux::default()
-                .graphics_exposures(0)
-                .foreground(GRAY_COLOR),
-        )?;
-        conn.create_gc(
-            normal_gc,
-            parent_id,
-            &CreateGCAux::default()
-                .graphics_exposures(0)
-                .foreground(screen.white_pixel),
-        )?;
-
-        let width = 100;
-        let items = [
-            MenuItem::new(
-                "Show file info",
+        let data = [
+            (
                 MenuAction::ToggleFileInfo,
-                0,
-                0,
-                width,
-                MENU_ITEM_HEIGHT,
+                RenderString::new(
+                    vec![RenderLine::new(&font_drawer, "Show file info")],
+                    0,
+                    WHITE_RENDER_COLOR,
+                    GRAY_RENDER_COLOR,
+                )
+                .pad(5),
             ),
-            MenuItem::new("Exit", MenuAction::Exit, 0, 20, width, MENU_ITEM_HEIGHT),
+            (
+                MenuAction::Exit,
+                RenderString::new(
+                    vec![RenderLine::new(&font_drawer, "Exit")],
+                    0,
+                    WHITE_RENDER_COLOR,
+                    GRAY_RENDER_COLOR,
+                )
+                .pad(5),
+            ),
         ];
-        let height = items.len() as u16 * MENU_ITEM_HEIGHT;
+
+        let mut total_width = 0;
+        let mut total_height = 0;
+        for (_, string) in &data {
+            let (w, h) = string.box_dimensions();
+            if w > total_width {
+                total_width = w;
+            }
+            total_height += h;
+        }
+        conn.create_window(
+            vis_info.root.depth,
+            id,
+            parent,
+            0,
+            0,
+            total_width,
+            total_height,
+            1,
+            WindowClass::INPUT_OUTPUT,
+            0,
+            &CreateWindowAux::default().border_pixel(screen.black_pixel),
+        )?;
+
+        let mut offset_y = 0;
+        let mut menu_items = vec![];
+        for (action, string) in data {
+            let (_, h) = string.box_dimensions();
+            let item = MenuItem::new(
+                conn,
+                &vis_info,
+                id,
+                total_width,
+                string,
+                action,
+                Rect::new(0, offset_y, total_width, h),
+            )?;
+            offset_y += h as i16;
+            mevi_info!("Constructed menu item with rect: {:?}", item.rect);
+            menu_items.push(item);
+        }
+        mevi_info!("Total menu height: {total_height}px");
 
         let menu = Self {
             id,
-            parent_id,
-            depth: screen.root_depth,
-            bg: screen.white_pixel,
-            fg: screen.black_pixel,
-            gc1: normal_gc,
-            gc2: selected_gc,
-            font_gc1,
-            font_gc2,
+            pict: conn.generate_id()?,
+            vis_info,
             visible: false,
-            items,
+            font_drawer,
+            items: menu_items,
             selected: Some(0),
             rect: Rectangle {
                 x: 0,
                 y: 0,
-                width,
-                height,
+                width: total_width,
+                height: offset_y as u16,
             },
         };
-        conn.create_window(
-            menu.depth,
-            menu.id,
-            menu.parent_id,
-            menu.rect.x,
-            menu.rect.y,
-            menu.rect.width,
-            menu.rect.height,
-            1,
-            WindowClass::INPUT_OUTPUT,
-            0,
-            &CreateWindowAux::default()
-                .background_pixel(menu.bg)
-                .border_pixel(menu.fg),
-        )?;
-
         Ok(menu)
     }
 
@@ -181,12 +206,19 @@ impl Menu {
         conn.map_window(self.id)?;
         conn.flush()?;
 
+        conn.render_create_picture(
+            self.pict,
+            self.id,
+            self.vis_info.root.pict_format,
+            &CreatePictureAux::default()
+                .polyedge(PolyEdge::SMOOTH)
+                .polymode(PolyMode::IMPRECISE),
+        )?;
+
         self.rect.x = x;
         self.rect.y = y;
         self.visible = true;
         self.selected = Some(0);
-
-        self.draw(conn)?;
 
         mevi_info!("Mapped menu window to pos (x: {x}, y: {y})");
 
@@ -194,6 +226,7 @@ impl Menu {
     }
 
     fn unmap_window(&mut self, conn: &RustConnection) -> Result<bool> {
+        conn.render_free_picture(self.pict)?;
         conn.unmap_window(self.id)?;
         conn.flush()?;
         self.visible = false;
@@ -202,25 +235,20 @@ impl Menu {
         Ok(true)
     }
 
-    fn draw(&self, conn: &RustConnection) -> Result<()> {
+    fn draw(&mut self, conn: &RustConnection) -> Result<()> {
         if !self.visible {
             return Ok(());
         }
 
         let selected = self.selected.unwrap_or(usize::MAX);
-        for (i, item) in self.items.iter().enumerate() {
-            let (font_gc, bg_gc) = if i == selected {
-                (self.font_gc2, self.gc2)
-            } else {
-                (self.font_gc1, self.gc1)
-            };
-            conn.poly_fill_rectangle(self.id, bg_gc, &[item.rect()])?;
-            conn.image_text8(
-                self.id,
-                font_gc,
-                5,
-                item.rect.y + item.text_position(),
-                item.name.as_bytes(),
+        for (i, item) in self.items.iter_mut().enumerate() {
+            self.font_drawer.draw(
+                conn,
+                item.get_picture(i == selected),
+                self.pict,
+                &item.text,
+                Some(self.rect.width),
+                (item.rect.x, item.rect.y),
             )?;
         }
         conn.flush()?;
@@ -228,7 +256,7 @@ impl Menu {
     }
 
     pub fn select_at_xy(&mut self, x: i16, y: i16) -> bool {
-        let height = self.items.len() as i16 * self.items[0].rect.height as i16;
+        let height = self.items.len() as i16 * self.items[0].rect.h as i16;
         let (rel_x, rel_y) = (x - self.rect.x, y - self.rect.y);
         if rel_y >= height && self.selected.is_some() {
             return self.deselect();
@@ -236,7 +264,8 @@ impl Menu {
 
         let mut needs_redraw = false;
         for (i, item) in &mut self.items.iter_mut().enumerate() {
-            if !xy_in_rect!(rel_x, rel_y, item.rect()) {
+            let r: Rectangle = item.rect.into();
+            if !xy_in_rect!(rel_x, rel_y, r) {
                 continue;
             }
             if let Some(sel) = self.selected {

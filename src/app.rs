@@ -164,7 +164,7 @@ impl<'a> Mevi<'a> {
             screen.root_depth,
             state.pms.font_buffer,
             screen.root,
-            file_info.total_width as u16,
+            file_info.total_width,
             file_info.total_height,
         )?;
 

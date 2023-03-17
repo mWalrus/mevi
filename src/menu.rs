@@ -128,8 +128,6 @@ impl Menu {
             }
             total_height += h;
         }
-        let total_width = total_width as u16;
-
         conn.create_window(
             vis_info.root.depth,
             id,

@@ -33,7 +33,7 @@ impl FontDrawer {
     ) -> Result<()> {
         let (w, h) = string.box_dimensions();
 
-        let fill_area: Rectangle = Rect::new(x, y, alt_width.unwrap_or(w) as u16, h).into();
+        let fill_area: Rectangle = Rect::new(x, y, alt_width.unwrap_or(w), h).into();
         conn.render_fill_rectangles(PictOp::SRC, src, string.fg, &[fill_area])?;
         conn.render_fill_rectangles(PictOp::SRC, dst, string.bg, &[fill_area])?;
 

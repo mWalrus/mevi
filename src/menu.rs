@@ -40,7 +40,7 @@ pub struct Menu {
 
 #[derive(Debug, Clone)]
 struct MenuItem {
-    render_picture: StatefulRenderPicture,
+    srp: StatefulRenderPicture,
     text: RenderString,
     rect: Rect,
     action: MenuAction,
@@ -56,10 +56,10 @@ impl MenuItem {
         action: MenuAction,
         rect: Rect,
     ) -> Result<Self> {
-        let srp =
-            StatefulRenderPicture::new(conn, vis_info, parent_id, parent_w, text.total_height)?;
+        let (_, h) = text.box_dimensions();
+        let srp = StatefulRenderPicture::new(conn, vis_info, parent_id, parent_w, h)?;
         Ok(Self {
-            render_picture: srp,
+            srp,
             text,
             action,
             rect,
@@ -67,22 +67,22 @@ impl MenuItem {
     }
 
     fn set_active(&mut self) {
-        self.text.fg = self.render_picture.active.fg;
-        self.text.bg = self.render_picture.active.bg;
+        self.text.fg = self.srp.active.fg;
+        self.text.bg = self.srp.active.bg;
     }
 
     fn set_inactive(&mut self) {
-        self.text.fg = self.render_picture.inactive.fg;
-        self.text.bg = self.render_picture.inactive.bg;
+        self.text.fg = self.srp.inactive.fg;
+        self.text.bg = self.srp.inactive.bg;
     }
 
     pub fn get_picture(&mut self, selected: bool) -> Picture {
         if selected {
             self.set_active();
-            self.render_picture.active.picture
+            self.srp.active.picture
         } else {
             self.set_inactive();
-            self.render_picture.inactive.picture
+            self.srp.inactive.picture
         }
     }
 }
@@ -122,11 +122,11 @@ impl Menu {
         let mut total_width = 0;
         let mut total_height = 0;
         for (_, string) in &data {
-            let bw = string.box_width();
-            if bw > total_width {
-                total_width = bw;
+            let (w, h) = string.box_dimensions();
+            if w > total_width {
+                total_width = w;
             }
-            total_height += string.box_height();
+            total_height += h;
         }
         let total_width = total_width as u16;
 
@@ -146,8 +146,8 @@ impl Menu {
 
         let mut offset_y = 0;
         let mut menu_items = vec![];
-        for (i, (action, string)) in data.into_iter().enumerate() {
-            let height = string.box_height();
+        for (action, string) in data {
+            let (_, h) = string.box_dimensions();
             let item = MenuItem::new(
                 conn,
                 &vis_info,
@@ -155,11 +155,13 @@ impl Menu {
                 total_width,
                 string,
                 action,
-                Rect::new(0, i as i16 * height as i16, total_width, height),
+                Rect::new(0, offset_y, total_width, h),
             )?;
-            offset_y += item.text.box_height() as i16;
+            offset_y += h as i16;
+            mevi_info!("Constructed menu item with rect: {:?}", item.rect);
             menu_items.push(item);
         }
+        mevi_info!("Total menu height: {total_height}px");
 
         let menu = Self {
             id,
@@ -247,7 +249,7 @@ impl Menu {
                 item.get_picture(i == selected),
                 self.pict,
                 &item.text,
-                Some(self.rect.width as i16),
+                Some(self.rect.width),
                 (item.rect.x, item.rect.y),
             )?;
         }

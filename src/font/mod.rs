@@ -6,7 +6,10 @@ use crate::util::Rect;
 use anyhow::Result;
 pub use render_string::{RenderLine, RenderString, ToRenderLine};
 use x11rb::{
-    protocol::render::{ConnectionExt, Glyphset, PictOp, Picture},
+    protocol::{
+        render::{ConnectionExt, Glyphset, PictOp, Picture},
+        xproto::Rectangle,
+    },
     rust_connection::RustConnection,
 };
 
@@ -25,28 +28,18 @@ impl FontDrawer {
         src: Picture,
         dst: Picture,
         string: &RenderString,
-        alt_width: Option<i16>,
+        alt_width: Option<u16>,
         (x, y): (i16, i16),
     ) -> Result<()> {
-        let height = string.box_height();
-        let width = string.box_width();
-        conn.render_fill_rectangles(
-            PictOp::SRC,
-            src,
-            string.fg,
-            &[Rect::new(
-                x,
-                y,
-                (string.hpad + string.total_width) as u16,
-                string.vpad + string.total_height,
-            )
-            .into()],
-        )?;
-        let fill_area = Rect::new(x, y, alt_width.unwrap_or(width) as u16, height);
-        conn.render_fill_rectangles(PictOp::SRC, dst, string.bg, &[fill_area.into()])?;
+        let (w, h) = string.box_dimensions();
+
+        let fill_area: Rectangle = Rect::new(x, y, alt_width.unwrap_or(w) as u16, h).into();
+        conn.render_fill_rectangles(PictOp::SRC, src, string.fg, &[fill_area])?;
+        conn.render_fill_rectangles(PictOp::SRC, dst, string.bg, &[fill_area])?;
+
         let mut offset_y = y;
         for line in &string.lines {
-            let mut offset_x = fill_area.x + x + string.hpad;
+            let mut offset_x = fill_area.x + x + string.hpad as i16;
             for chunk in &line.chunks {
                 self.draw_glyphs(
                     conn,

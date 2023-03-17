@@ -30,10 +30,10 @@ pub trait ToRenderLine {
 pub struct RenderString {
     pub lines: Vec<RenderLine>,
     pub line_gap: u16,
-    pub total_width: i16,
+    pub total_width: u16,
     pub total_height: u16,
     pub vpad: u16,
-    pub hpad: i16,
+    pub hpad: u16,
     pub bg: Color,
     pub fg: Color,
 }
@@ -50,7 +50,7 @@ impl RenderString {
         Self {
             lines,
             line_gap,
-            total_width,
+            total_width: total_width as u16,
             total_height,
             vpad: 0,
             hpad: 0,
@@ -60,16 +60,15 @@ impl RenderString {
     }
 
     pub fn pad(mut self, pad: u16) -> Self {
-        self.hpad = pad as i16;
+        self.hpad = pad;
         self.vpad = pad;
         self
     }
 
-    pub fn box_height(&self) -> u16 {
-        self.total_height + ((self.lines.len() as u16 - 1) * self.line_gap) + (self.vpad * 2)
-    }
-
-    pub fn box_width(&self) -> i16 {
-        self.total_width + (self.hpad * 2)
+    pub fn box_dimensions(&self) -> (u16, u16) {
+        (
+            self.total_width + (self.hpad * 2),
+            self.total_height + ((self.lines.len() as u16 - 1) * self.line_gap) + (self.vpad * 2),
+        )
     }
 }

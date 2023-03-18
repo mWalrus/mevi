@@ -9,7 +9,6 @@ use x11rb::{
     },
 };
 
-#[derive(Debug)]
 pub struct MeviState<'s, C: Connection> {
     pub window: WindowWrapper<'s, C>,
     pub menu: WindowWrapper<'s, C>,
@@ -18,14 +17,12 @@ pub struct MeviState<'s, C: Connection> {
     pub pics: Pics<'s, C>,
 }
 
-#[derive(Debug)]
 pub struct Gcs<'s, C: Connection> {
     pub buffer: GcontextWrapper<'s, C>,
     pub background: GcontextWrapper<'s, C>,
     pub tile: GcontextWrapper<'s, C>,
 }
 
-#[derive(Debug)]
 pub struct Pms<'s, C: Connection> {
     pub image: PixmapWrapper<'s, C>,
     pub buffer: PixmapWrapper<'s, C>,
@@ -33,11 +30,47 @@ pub struct Pms<'s, C: Connection> {
     pub background: PixmapWrapper<'s, C>,
 }
 
-#[derive(Debug)]
 pub struct Pics<'s, C: Connection> {
     pub window: PictureWrapper<'s, C>,
     pub buffer: PictureWrapper<'s, C>,
     pub font_buffer: PictureWrapper<'s, C>,
+}
+
+impl<C: Connection> Debug for Gcs<'_, C> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Gcs {{ buffer: {}, background: {}, tile: {} }}",
+            self.buffer.gcontext(),
+            self.background.gcontext(),
+            self.tile.gcontext()
+        )
+    }
+}
+
+impl<C: Connection> Debug for Pms<'_, C> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Pms {{ image: {}, buffer: {}, font_buffer: {}, background: {} }}",
+            self.image.pixmap(),
+            self.buffer.pixmap(),
+            self.font_buffer.pixmap(),
+            self.background.pixmap()
+        )
+    }
+}
+
+impl<C: Connection> Debug for Pics<'_, C> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Pics {{ window: {}, buffer: {}, font_buffer: {} }}",
+            self.window.picture(),
+            self.buffer.picture(),
+            self.font_buffer.picture()
+        )
+    }
 }
 
 impl<'s, C: Connection + Debug> MeviState<'s, C> {
@@ -61,8 +94,8 @@ impl<'s, C: Connection + Debug> MeviState<'s, C> {
             font_buffer: PictureWrapper::for_picture(conn, conn.generate_id()?),
         };
 
-        mevi_info!("Window: {window:?}");
-        mevi_info!("Menu window: {menu:?}");
+        mevi_info!("Window: {}", window.window());
+        mevi_info!("Menu window: {}", menu.window());
         mevi_info!("Pixmaps: {pms:?}");
         mevi_info!("Gcontexts: {gcs:?}");
         mevi_info!("Pictures: {pics:?}");

@@ -300,7 +300,7 @@ impl<'a> Mevi<'a> {
                 self.state.pics.buffer,
                 &self.file_info,
                 None,
-                (0, 0),
+                0,
             )?;
 
             self.conn.render_free_picture(self.state.pics.buffer)?;

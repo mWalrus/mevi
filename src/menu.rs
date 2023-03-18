@@ -248,7 +248,7 @@ impl Menu {
                 self.pict,
                 &item.text,
                 Some(self.rect.width),
-                (item.rect.x, item.rect.y),
+                item.rect.y,
             )?;
         }
         conn.flush()?;

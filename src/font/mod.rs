@@ -29,19 +29,20 @@ impl FontDrawer {
         dst: Picture,
         string: &RenderString,
         alt_width: Option<u16>,
-        (x, y): (i16, i16),
+        y: i16,
     ) -> Result<()> {
         let (w, h) = string.box_dimensions();
         let w = alt_width.unwrap_or(w);
 
-        let fg_fill_area: Rectangle = Rect::new(x, 0, w, h).into();
-        let bg_fill_area: Rectangle = Rect::new(x, y, w, h).into();
+        let fg_fill_area: Rectangle = Rect::new(0, 0, w, h).into();
+        let bg_fill_area: Rectangle = Rect::new(0, y, w, h).into();
+
         conn.render_fill_rectangles(PictOp::SRC, src, string.fg, &[fg_fill_area])?;
         conn.render_fill_rectangles(PictOp::SRC, dst, string.bg, &[bg_fill_area])?;
 
         let mut offset_y = y;
         for line in &string.lines {
-            let mut offset_x = bg_fill_area.x + x + string.hpad as i16;
+            let mut offset_x = string.hpad as i16;
             for chunk in &line.chunks {
                 self.draw_glyphs(
                     conn,

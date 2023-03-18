@@ -1,9 +1,9 @@
 pub mod loader;
 pub mod render_string;
 
-use self::loader::LoadedFont;
 use crate::util::{Rect, WHITE_RENDER_COLOR};
 use anyhow::Result;
+use loader::LoadedFont;
 pub use render_string::{RenderLine, RenderString, ToRenderLine};
 use x11rb::{
     connection::Connection,

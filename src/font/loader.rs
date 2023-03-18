@@ -51,6 +51,7 @@ impl LoadedFont {
 
         let gsid = conn.generate_id()?;
         conn.render_create_glyph_set(gsid, pict_format)?;
+        mevi_info!("Created glyphset {gsid}");
 
         let mut data = vec![];
         let mut max_height = 0;
@@ -62,6 +63,7 @@ impl LoadedFont {
             }
             data.push((c, metrics, bitmaps))
         }
+        mevi_info!("Rasterized font");
 
         let mut ids = vec![];
         let mut infos = vec![];

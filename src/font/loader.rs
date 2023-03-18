@@ -180,7 +180,7 @@ impl LoadedFont {
                 glyph_ids: cur_glyphs,
             })
         }
-        mevi_info!("Font-encoded \"{text}\"");
+        mevi_info!("Font-encoded text -> \"{text}\"");
         chunks
     }
 }

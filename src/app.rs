@@ -21,7 +21,7 @@ use x11rb::wrapper::ConnectionExt as _;
 
 pub struct Mevi<'a, C: Connection> {
     pub atoms: Atoms,
-    conn: &'a C,
+    conn: Rc<&'a C>,
     screen: &'a Screen,
     vis_info: Rc<RenderVisualInfo>,
     file_info: RenderString,
@@ -29,7 +29,7 @@ pub struct Mevi<'a, C: Connection> {
     pub font_drawer: Rc<FontDrawer>,
     image: MeviImage,
     needs_redraw: bool,
-    pub menu: Menu,
+    pub menu: Menu<'a, C>,
     pub w: u16,
     pub h: u16,
     show_file_info: bool,
@@ -152,8 +152,9 @@ impl<'a, C: Connection> Mevi<'a, C> {
         let font = LoadedFont::new(conn, vis_info.render.pict_format)?;
         let font_drawer = Rc::new(FontDrawer::new(font));
 
+        let conn = Rc::new(conn);
         let menu = Menu::create(
-            conn,
+            Rc::clone(&conn),
             screen,
             state.window,
             Rc::clone(&vis_info),
@@ -205,7 +206,7 @@ impl<'a, C: Connection> Mevi<'a, C> {
             match MeviEvent::handle(self, event) {
                 MeviEvent::DrawImage => self.needs_redraw = true,
                 MeviEvent::ToggleFileInfo => self.toggle_show_file_info(),
-                MeviEvent::Menu(menu_evt) => match self.menu.handle_event(self.conn, menu_evt)? {
+                MeviEvent::Menu(menu_evt) => match self.menu.handle_event(menu_evt)? {
                     MenuAction::ToggleFileInfo => self.toggle_show_file_info(),
                     MenuAction::Exit => self.should_exit = true,
                     MenuAction::None => {}
@@ -241,7 +242,7 @@ impl<'a, C: Connection> Mevi<'a, C> {
     }
 
     fn draw_image(&mut self) -> Result<()> {
-        let di = DrawInfo::calculate(self.conn, &self.state, &self.image)?;
+        let di = DrawInfo::calculate(*self.conn, &self.state, &self.image)?;
         self.w = di.parent.w;
         self.h = di.parent.h;
 
@@ -312,7 +313,7 @@ impl<'a, C: Connection> Mevi<'a, C> {
             )?;
 
             self.font_drawer.draw(
-                self.conn,
+                *self.conn,
                 self.state.pics.font_buffer,
                 self.state.pics.buffer,
                 &self.file_info,

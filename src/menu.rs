@@ -26,8 +26,9 @@ pub enum MenuAction {
     None,
 }
 
-pub struct Menu {
+pub struct Menu<'m, C: Connection> {
     id: u32,
+    conn: Rc<&'m C>,
     pict: Picture,
     vis_info: Rc<RenderVisualInfo>,
     font_drawer: Rc<FontDrawer>,
@@ -73,9 +74,9 @@ impl MenuItem {
     }
 }
 
-impl Menu {
-    pub fn create<C: Connection>(
-        conn: &C,
+impl<'m, C: Connection> Menu<'m, C> {
+    pub fn create(
+        conn: Rc<&'m C>,
         screen: &Screen,
         parent: Window,
         vis_info: Rc<RenderVisualInfo>,
@@ -121,7 +122,7 @@ impl Menu {
         for (action, string) in data {
             let (_, h) = string.box_dimensions();
             let item = MenuItem::new(
-                conn,
+                *conn,
                 &vis_info,
                 id,
                 total_width,
@@ -135,9 +136,12 @@ impl Menu {
         }
         mevi_info!("Total menu dimensions: width -> {total_width}px, height -> {total_height}px");
 
+        let pict = conn.generate_id()?;
+
         let menu = Self {
             id,
-            pict: conn.generate_id()?,
+            conn,
+            pict,
             vis_info,
             visible: false,
             font_drawer,
@@ -154,34 +158,35 @@ impl Menu {
         Ok(menu)
     }
 
-    pub fn handle_event<C: Connection>(&mut self, conn: &C, e: MenuEvent) -> Result<MenuAction> {
+    pub fn handle_event(&mut self, e: MenuEvent) -> Result<MenuAction> {
         let mut action: Option<MenuAction> = None;
         let needs_redraw = match e {
-            MenuEvent::MapAt(x, y) => self.map_window(conn, x, y)?,
-            MenuEvent::Unmap => self.unmap_window(conn)?,
+            MenuEvent::MapAt(x, y) => self.map_window(x, y)?,
+            MenuEvent::Unmap => self.unmap_window()?,
             MenuEvent::Next => self.select_next(),
             MenuEvent::Prev => self.select_prev(),
             MenuEvent::FindHovered(x, y) => self.select_at_xy(x, y),
             MenuEvent::Select => {
                 action = Some(self.get_action());
-                self.unmap_window(conn)?
+                self.unmap_window()?
             }
             MenuEvent::Deselect => self.deselect(),
         };
 
         if needs_redraw {
-            self.draw(conn)?;
+            self.draw()?;
         }
 
         Ok(action.unwrap_or(MenuAction::None))
     }
 
-    fn map_window<C: Connection>(&mut self, conn: &C, x: i16, y: i16) -> Result<bool> {
-        conn.configure_window(self.id, &ConfigureWindowAux::new().x(x as i32).y(y as i32))?;
-        conn.map_window(self.id)?;
-        conn.flush()?;
+    fn map_window(&mut self, x: i16, y: i16) -> Result<bool> {
+        self.conn
+            .configure_window(self.id, &ConfigureWindowAux::new().x(x as i32).y(y as i32))?;
+        self.conn.map_window(self.id)?;
+        self.conn.flush()?;
 
-        conn.render_create_picture(
+        self.conn.render_create_picture(
             self.pict,
             self.id,
             self.vis_info.root.pict_format,
@@ -200,17 +205,17 @@ impl Menu {
         Ok(true)
     }
 
-    fn unmap_window<C: Connection>(&mut self, conn: &C) -> Result<bool> {
-        conn.render_free_picture(self.pict)?;
-        conn.unmap_window(self.id)?;
-        conn.flush()?;
+    fn unmap_window(&mut self) -> Result<bool> {
+        self.conn.render_free_picture(self.pict)?;
+        self.conn.unmap_window(self.id)?;
+        self.conn.flush()?;
         self.visible = false;
 
         mevi_info!("Unmapped menu window");
         Ok(true)
     }
 
-    fn draw<C: Connection>(&mut self, conn: &C) -> Result<()> {
+    fn draw(&mut self) -> Result<()> {
         if !self.visible {
             return Ok(());
         }
@@ -220,7 +225,7 @@ impl Menu {
         for (i, item) in self.items.iter_mut().enumerate() {
             let (pict, color) = item.get_pict_and_color(i == selected);
             self.font_drawer.draw(
-                conn,
+                *self.conn,
                 pict,
                 self.pict,
                 &item.text,
@@ -230,7 +235,7 @@ impl Menu {
             )?;
             mevi_info!("Drew menu item {}", i + 1);
         }
-        conn.flush()?;
+        self.conn.flush()?;
         Ok(())
     }
 

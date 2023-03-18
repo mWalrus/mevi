@@ -35,7 +35,7 @@ impl Debug for MeviImage {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "MeviImage {{ ow: {}, oh: {}, w: {}, h: {}, size: {}, path: {}. format: {} }}",
+            "MeviImage {{ ow: {}, oh: {}, w: {}, h: {}, size: {}, path: {}, format: {} }}",
             self.ow, self.oh, self.w, self.h, self.size, self.path, self.format
         )
     }

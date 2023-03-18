@@ -33,14 +33,6 @@ pub static WHITE_RENDER_COLOR: Color = Color {
     alpha: 0xffff,
 };
 
-#[allow(unused)]
-pub static BLACK_RENDER_COLOR: Color = Color {
-    red: 0x0000,
-    green: 0x0000,
-    blue: 0x0000,
-    alpha: 0xffff,
-};
-
 #[derive(Clone, Copy, Debug)]
 pub struct Rect {
     pub x: i16,

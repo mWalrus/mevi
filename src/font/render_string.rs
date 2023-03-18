@@ -36,13 +36,14 @@ pub struct RenderString {
 
 impl RenderString {
     pub fn new(lines: Vec<RenderLine>) -> Self {
+        let total_height = lines[0].height * lines.len() as u16;
         let mut total_width = 0;
         for line in lines.iter() {
             if line.width > total_width {
                 total_width = line.width;
             }
         }
-        let total_height = lines[0].height * lines.len() as u16;
+
         Self {
             lines,
             line_gap: 0,

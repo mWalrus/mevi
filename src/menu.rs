@@ -35,7 +35,7 @@ pub struct Menu<'m, C: Connection> {
     pub visible: bool,
     items: Vec<MenuItem>,
     pub selected: Option<usize>,
-    rect: Rectangle,
+    pub rect: Rect,
 }
 
 #[derive(Debug, Clone)]
@@ -147,12 +147,7 @@ impl<'m, C: Connection> Menu<'m, C> {
             font_drawer,
             items: menu_items,
             selected: Some(0),
-            rect: Rectangle {
-                x: 0,
-                y: 0,
-                width: total_width,
-                height: offset_y as u16,
-            },
+            rect: Rect::new(0, 0, total_width, offset_y as u16),
         };
         mevi_info!("Constructed the menu");
         Ok(menu)
@@ -220,20 +215,19 @@ impl<'m, C: Connection> Menu<'m, C> {
             return Ok(());
         }
 
-        mevi_info!("Redrawing menu");
         let selected = self.selected.unwrap_or(usize::MAX);
         for (i, item) in self.items.iter_mut().enumerate() {
+            mevi_info!("Redrawing menu item {}", i + 1);
             let (pict, color) = item.get_pict_and_color(i == selected);
             self.font_drawer.draw(
                 *self.conn,
                 pict,
                 self.pict,
                 &item.text,
-                Some(self.rect.width),
+                Some(self.rect.w),
                 item.rect.y,
                 color,
             )?;
-            mevi_info!("Drew menu item {}", i + 1);
         }
         self.conn.flush()?;
         Ok(())
@@ -299,9 +293,5 @@ impl<'m, C: Connection> Menu<'m, C> {
         let needs_redraw = self.selected.is_some();
         self.selected = None;
         needs_redraw
-    }
-
-    pub fn rect(&self) -> Rectangle {
-        self.rect
     }
 }

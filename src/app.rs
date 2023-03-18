@@ -7,14 +7,14 @@ use crate::img::MeviImage;
 use crate::menu::{Menu, MenuAction};
 use crate::screen::RenderVisualInfo;
 use crate::state::MeviState;
-use crate::util::{DrawInfo, GRAY_RENDER_COLOR, INITIAL_SIZE, TITLE};
+use crate::util::{DrawInfo, Rect, GRAY_RENDER_COLOR, INITIAL_SIZE, TITLE};
 use crate::{Atoms, CLI};
 use anyhow::Result;
 use x11rb::connection::Connection;
 use x11rb::image::Image;
 use x11rb::protocol::render::{ConnectionExt as _, CreatePictureAux, PolyEdge, PolyMode, Repeat};
 use x11rb::protocol::xproto::{
-    ConnectionExt, CreateGCAux, CreateWindowAux, EventMask, FillStyle, PropMode, Rectangle, Screen,
+    ConnectionExt, CreateGCAux, CreateWindowAux, EventMask, FillStyle, PropMode, Screen,
     WindowClass,
 };
 use x11rb::wrapper::ConnectionExt as _;
@@ -257,12 +257,7 @@ impl<'a, C: Connection> Mevi<'a, C> {
         self.conn.poly_fill_rectangle(
             self.state.pms.buffer,
             self.state.gcs.tile,
-            &[Rectangle {
-                x: 0,
-                y: 0,
-                width: di.parent.w,
-                height: di.parent.h,
-            }],
+            &[Rect::new(0, 0, di.parent.w, di.parent.h).into()],
         )?;
 
         self.conn.copy_area(

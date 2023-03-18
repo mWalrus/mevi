@@ -159,7 +159,7 @@ impl Menu {
             mevi_info!("Constructed menu item with rect: {:?}", item.rect);
             menu_items.push(item);
         }
-        mevi_info!("Total menu height: {total_height}px");
+        mevi_info!("Total menu dimensions: width -> {total_width}px, height -> {total_height}px");
 
         let menu = Self {
             id,
@@ -176,6 +176,7 @@ impl Menu {
                 height: offset_y as u16,
             },
         };
+        mevi_info!("Constructed the menu");
         Ok(menu)
     }
 
@@ -240,6 +241,7 @@ impl Menu {
             return Ok(());
         }
 
+        mevi_info!("Redrawing menu");
         let selected = self.selected.unwrap_or(usize::MAX);
         for (i, item) in self.items.iter_mut().enumerate() {
             self.font_drawer.draw(
@@ -250,6 +252,7 @@ impl Menu {
                 Some(self.rect.width),
                 item.rect.y,
             )?;
+            mevi_info!("Drew menu item {}", i + 1);
         }
         conn.flush()?;
         Ok(())

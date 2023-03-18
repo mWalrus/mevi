@@ -1,16 +1,16 @@
-mod cli;
-mod font;
-mod img;
-mod keys;
 #[macro_use]
 mod log;
-mod menu;
-mod screen;
-mod state;
 #[macro_use]
 mod util;
 mod app;
+mod cli;
 mod event;
+mod font;
+mod img;
+mod keys;
+mod menu;
+mod screen;
+mod state;
 
 use anyhow::Result;
 use app::Mevi;
@@ -43,8 +43,10 @@ x11rb::atom_manager! {
 
 fn main() -> Result<()> {
     let (conn, screen_num) = x11rb::connect(None)?;
+    mevi_info!("Connected to the X server");
 
     let screen = &conn.setup().roots[screen_num];
+    mevi_info!("Got screen handle");
 
     let pixel_layout = screen::pixel_layout_from_visual(screen, screen.root_visual)?;
 
@@ -55,7 +57,10 @@ fn main() -> Result<()> {
     let atoms = Atoms::new(&conn)?.reply()?;
 
     match Mevi::init(&conn, screen, atoms, image, bg_img) {
-        Ok(mut mevi) => mevi.run_event_loop()?,
+        Ok(mut mevi) => {
+            mevi_info!("Initialized Mevi!");
+            mevi.run_event_loop()?;
+        }
         Err(e) => {
             mevi_err!("{e:?}");
             std::process::exit(1);

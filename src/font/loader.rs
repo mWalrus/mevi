@@ -103,6 +103,7 @@ impl LoadedFont {
             }
         }
         conn.render_add_glyphs(gsid, &ids, &infos, &raw_data)?;
+        mevi_info!("Loaded font");
 
         Ok(LoadedFont {
             gsid,
@@ -123,7 +124,9 @@ impl LoadedFont {
                 }
             }
         }
-        (width, height)
+        let (w, h) = (width, height);
+        mevi_info!("Got font encoded geometry of text \"{text}\": w -> {w}, h -> {h}");
+        (w, h)
     }
 
     pub fn encode(&self, text: &str, max_width: i16) -> Vec<FontEncodedChunk> {
@@ -175,6 +178,7 @@ impl LoadedFont {
                 glyph_ids: cur_glyphs,
             })
         }
+        mevi_info!("Font-encoded \"{text}\"");
         chunks
     }
 }

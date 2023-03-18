@@ -38,7 +38,9 @@ impl FontDrawer {
         let bg_fill_area: Rectangle = Rect::new(0, y, w, h).into();
 
         conn.render_fill_rectangles(PictOp::SRC, src, string.fg, &[fg_fill_area])?;
+        mevi_info!("Filled foreground rect: {fg_fill_area:?}");
         conn.render_fill_rectangles(PictOp::SRC, dst, string.bg, &[bg_fill_area])?;
+        mevi_info!("Filled background rect: {bg_fill_area:?}");
 
         let mut offset_y = y;
         for line in &string.lines {
@@ -57,6 +59,8 @@ impl FontDrawer {
             }
             offset_y += (line.height + string.line_gap) as i16;
         }
+        mevi_info!("Drew text to screen");
+
         Ok(())
     }
 
@@ -86,7 +90,6 @@ impl FontDrawer {
         }
 
         conn.render_composite_glyphs16(PictOp::OVER, src, dst, 0, glyphs, 0, 0, &buf)?;
-
         Ok(())
     }
 }

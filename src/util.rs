@@ -125,10 +125,10 @@ pub struct DrawInfo {
 impl DrawInfo {
     pub fn calculate<C: Connection>(
         conn: &C,
-        state: &MeviState,
+        state: &MeviState<C>,
         image: &MeviImage,
     ) -> Result<Self> {
-        let attrs = conn.get_geometry(state.window)?.reply()?;
+        let attrs = conn.get_geometry(state.window.window())?.reply()?;
         let (parent_w, parent_h) = (attrs.width, attrs.height);
         let (cx, cy) = (parent_w as i16 / 2, parent_h as i16 / 2);
 

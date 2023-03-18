@@ -125,7 +125,7 @@ impl LoadedFont {
             }
         }
         let (w, h) = (width, height);
-        mevi_info!("Got font encoded geometry of text \"{text}\": w -> {w}, h -> {h}");
+        mevi_info!("Got font encoded geometry of text \"{text}\": w -> {w}px, h -> {h}px");
         (w, h)
     }
 

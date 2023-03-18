@@ -1,4 +1,4 @@
-use x11rb::{protocol::Event, x11_utils::X11Error};
+use x11rb::{connection::Connection, protocol::Event, x11_utils::X11Error};
 
 use crate::{app::Mevi, keys::Key};
 
@@ -22,7 +22,7 @@ pub enum MenuEvent {
 }
 
 impl MeviEvent {
-    pub fn handle(app: &Mevi, event: Event) -> Self {
+    pub fn handle<C: Connection>(app: &Mevi<C>, event: Event) -> Self {
         let menu_rect = app.menu.rect();
         mevi_event!(event);
         match event {

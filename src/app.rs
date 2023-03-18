@@ -17,12 +17,11 @@ use x11rb::protocol::xproto::{
     ConnectionExt, CreateGCAux, CreateWindowAux, EventMask, FillStyle, PropMode, Rectangle, Screen,
     WindowClass,
 };
-use x11rb::rust_connection::RustConnection;
 use x11rb::wrapper::ConnectionExt as _;
 
-pub struct Mevi<'a> {
+pub struct Mevi<'a, C: Connection> {
     pub atoms: Atoms,
-    conn: &'a RustConnection,
+    conn: &'a C,
     screen: &'a Screen,
     vis_info: Rc<RenderVisualInfo>,
     file_info: RenderString,
@@ -37,9 +36,9 @@ pub struct Mevi<'a> {
     should_exit: bool,
 }
 
-impl<'a> Mevi<'a> {
+impl<'a, C: Connection> Mevi<'a, C> {
     pub fn init(
-        conn: &'a RustConnection,
+        conn: &'a C,
         screen: &'a Screen,
         atoms: Atoms,
         image: MeviImage,

@@ -17,7 +17,6 @@ use x11rb::{
             WindowClass,
         },
     },
-    rust_connection::RustConnection,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -47,8 +46,8 @@ struct MenuItem {
 }
 
 impl MenuItem {
-    fn new(
-        conn: &RustConnection,
+    fn new<C: Connection>(
+        conn: &C,
         vis_info: &RenderVisualInfo,
         parent_id: Window,
         parent_w: u16,
@@ -65,31 +64,18 @@ impl MenuItem {
             rect,
         })
     }
-
-    fn set_active(&mut self) {
-        self.text.fg = self.srp.active.fg;
-        self.text.bg = self.srp.active.bg;
-    }
-
-    fn set_inactive(&mut self) {
-        self.text.fg = self.srp.inactive.fg;
-        self.text.bg = self.srp.inactive.bg;
-    }
-
-    pub fn get_picture(&mut self, selected: bool) -> Picture {
+    pub fn get_pict_and_color(&mut self, selected: bool) -> (Picture, Color) {
         if selected {
-            self.set_active();
-            self.srp.active.picture
+            (self.srp.active.picture, LIGHT_GRAY_RENDER_COLOR)
         } else {
-            self.set_inactive();
-            self.srp.inactive.picture
+            (self.srp.inactive.picture, GRAY_RENDER_COLOR)
         }
     }
 }
 
 impl Menu {
-    pub fn create(
-        conn: &RustConnection,
+    pub fn create<C: Connection>(
+        conn: &C,
         screen: &Screen,
         parent: Window,
         vis_info: Rc<RenderVisualInfo>,
@@ -180,7 +166,7 @@ impl Menu {
         Ok(menu)
     }
 
-    pub fn handle_event(&mut self, conn: &RustConnection, e: MenuEvent) -> Result<MenuAction> {
+    pub fn handle_event<C: Connection>(&mut self, conn: &C, e: MenuEvent) -> Result<MenuAction> {
         let mut action: Option<MenuAction> = None;
         let needs_redraw = match e {
             MenuEvent::MapAt(x, y) => self.map_window(conn, x, y)?,
@@ -202,7 +188,7 @@ impl Menu {
         Ok(action.unwrap_or(MenuAction::None))
     }
 
-    fn map_window(&mut self, conn: &RustConnection, x: i16, y: i16) -> Result<bool> {
+    fn map_window<C: Connection>(&mut self, conn: &C, x: i16, y: i16) -> Result<bool> {
         conn.configure_window(self.id, &ConfigureWindowAux::new().x(x as i32).y(y as i32))?;
         conn.map_window(self.id)?;
         conn.flush()?;
@@ -226,7 +212,7 @@ impl Menu {
         Ok(true)
     }
 
-    fn unmap_window(&mut self, conn: &RustConnection) -> Result<bool> {
+    fn unmap_window<C: Connection>(&mut self, conn: &C) -> Result<bool> {
         conn.render_free_picture(self.pict)?;
         conn.unmap_window(self.id)?;
         conn.flush()?;
@@ -236,7 +222,7 @@ impl Menu {
         Ok(true)
     }
 
-    fn draw(&mut self, conn: &RustConnection) -> Result<()> {
+    fn draw<C: Connection>(&mut self, conn: &C) -> Result<()> {
         if !self.visible {
             return Ok(());
         }

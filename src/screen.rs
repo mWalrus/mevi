@@ -2,12 +2,13 @@ use anyhow::Result;
 use smallmap::Map;
 use thiserror::Error;
 use x11rb::{
+    connection::Connection,
     image::PixelLayout,
     protocol::{
         render::{query_pict_formats, Directformat, PictType, Pictformat, Pictforminfo},
         xproto::{Screen, VisualClass, Visualid, Visualtype},
     },
-    rust_connection::{ConnectionError, ParseError, ReplyError, RustConnection},
+    rust_connection::{ConnectionError, ParseError, ReplyError},
 };
 
 #[derive(Error, Debug)]
@@ -39,7 +40,7 @@ pub struct VisualInfo {
 }
 
 impl RenderVisualInfo {
-    pub fn new(conn: &RustConnection, screen: &Screen) -> Result<Self, VisualError> {
+    pub fn new<C: Connection>(conn: &C, screen: &Screen) -> Result<Self, VisualError> {
         let rvi = Self {
             root: VisualInfo::find_appropriate_visual(
                 conn,
@@ -54,8 +55,8 @@ impl RenderVisualInfo {
 }
 
 impl VisualInfo {
-    pub fn find_appropriate_visual(
-        conn: &RustConnection,
+    pub fn find_appropriate_visual<C: Connection>(
+        conn: &C,
         depth: u8,
         id: Option<Visualid>,
     ) -> Result<VisualInfo, VisualError> {

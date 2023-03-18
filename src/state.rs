@@ -5,7 +5,6 @@ use x11rb::{
         render::Picture,
         xproto::{Gcontext, Pixmap, Window},
     },
-    rust_connection::RustConnection,
 };
 
 #[derive(Clone, Copy, Debug)]
@@ -40,7 +39,7 @@ pub struct Pics {
 }
 
 impl MeviState {
-    pub fn init(conn: &RustConnection) -> Result<Self> {
+    pub fn init<C: Connection>(conn: &C) -> Result<Self> {
         let window = conn.generate_id()?;
         let menu = conn.generate_id()?;
         let pms = Pms {

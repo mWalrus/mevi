@@ -6,11 +6,11 @@ use crate::util::Rect;
 use anyhow::Result;
 pub use render_string::{RenderLine, RenderString, ToRenderLine};
 use x11rb::{
+    connection::Connection,
     protocol::{
         render::{ConnectionExt, Glyphset, PictOp, Picture},
         xproto::Rectangle,
     },
-    rust_connection::RustConnection,
 };
 
 pub struct FontDrawer {
@@ -22,9 +22,9 @@ impl FontDrawer {
         Self { font }
     }
 
-    pub fn draw(
+    pub fn draw<C: Connection>(
         &self,
-        conn: &RustConnection,
+        conn: &C,
         src: Picture,
         dst: Picture,
         string: &RenderString,
@@ -64,9 +64,9 @@ impl FontDrawer {
         Ok(())
     }
 
-    fn draw_glyphs(
+    fn draw_glyphs<C: Connection>(
         &self,
-        conn: &RustConnection,
+        conn: &C,
         (x, y): (i16, i16),
         glyphs: Glyphset,
         src: Picture,

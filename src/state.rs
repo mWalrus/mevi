@@ -59,12 +59,18 @@ impl MeviState {
             buffer: conn.generate_id()?,
             font_buffer: conn.generate_id()?,
         };
-        Ok(Self {
+        let state = Self {
             window,
             menu,
             pms,
             gcs,
             pics,
-        })
+        };
+        mevi_info!("Window: {window}");
+        mevi_info!("Menu window: {menu}");
+        mevi_info!("Pixmaps: {pms:?}");
+        mevi_info!("Gcontexts: {gcs:?}");
+        mevi_info!("Pictures: {pics:?}");
+        Ok(state)
     }
 }

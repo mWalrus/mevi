@@ -51,6 +51,7 @@ impl LoadedFont {
 
         let gsid = conn.generate_id()?;
         conn.render_create_glyph_set(gsid, pict_format)?;
+        mevi_info!("Created glyphset {gsid}");
 
         let mut data = vec![];
         let mut max_height = 0;
@@ -62,6 +63,7 @@ impl LoadedFont {
             }
             data.push((c, metrics, bitmaps))
         }
+        mevi_info!("Rasterized font");
 
         let mut ids = vec![];
         let mut infos = vec![];
@@ -103,6 +105,7 @@ impl LoadedFont {
             }
         }
         conn.render_add_glyphs(gsid, &ids, &infos, &raw_data)?;
+        mevi_info!("Loaded font");
 
         Ok(LoadedFont {
             gsid,
@@ -123,7 +126,9 @@ impl LoadedFont {
                 }
             }
         }
-        (width, height)
+        let (w, h) = (width, height);
+        mevi_info!("Got font encoded geometry of text \"{text}\": w -> {w}px, h -> {h}px");
+        (w, h)
     }
 
     pub fn encode(&self, text: &str, max_width: i16) -> Vec<FontEncodedChunk> {
@@ -175,6 +180,7 @@ impl LoadedFont {
                 glyph_ids: cur_glyphs,
             })
         }
+        mevi_info!("Font-encoded text -> \"{text}\"");
         chunks
     }
 }

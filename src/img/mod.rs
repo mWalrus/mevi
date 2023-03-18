@@ -2,7 +2,7 @@ use anyhow::Result;
 use image::imageops::FilterType;
 use image::io::Reader as ImageReader;
 use lazy_static::{__Deref, lazy_static};
-use std::{borrow::Cow, fs::File, path::PathBuf};
+use std::{borrow::Cow, fmt::Debug, fs::File, path::PathBuf};
 use x11rb::{
     connection::Connection,
     image::{BitsPerPixel, ColorComponent, Image, ImageOrder, PixelLayout, ScanlinePad},
@@ -31,6 +31,16 @@ pub struct MeviImage {
     pub format: String,
 }
 
+impl Debug for MeviImage {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "MeviImage {{ ow: {}, oh: {}, w: {}, h: {}, size: {}, path: {}, format: {} }}",
+            self.ow, self.oh, self.w, self.h, self.size, self.path, self.format
+        )
+    }
+}
+
 impl MeviImage {
     pub fn new(
         conn: &RustConnection,
@@ -43,6 +53,7 @@ impl MeviImage {
             let data = f.metadata()?;
             data.len() / 1024 // Kb
         };
+
         let image = ImageReader::open(path)?.with_guessed_format()?;
         let format = if let Some(fmt) = image.format() {
             format!("{fmt:?}")
@@ -85,6 +96,7 @@ impl MeviImage {
             path: path.to_str().unwrap().to_owned(),
             format,
         };
+        mevi_info!("Loaded image: {mevi_image:?}");
 
         Ok(mevi_image)
     }
@@ -116,5 +128,7 @@ pub fn get_bg_image(conn: &RustConnection, pixel_layout: PixelLayout) -> Result<
     )?;
 
     let image = image.reencode(*FOREIGN_PIXEL_LAYOUT, pixel_layout, conn.setup())?;
+    mevi_info!("Loaded background image");
+
     Ok(image.deref().to_owned())
 }

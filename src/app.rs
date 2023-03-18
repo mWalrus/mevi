@@ -117,6 +117,8 @@ impl<'a> Mevi<'a> {
             &win_aux,
         )?;
 
+        mevi_info!("Created main window");
+
         conn.change_property8(
             PropMode::REPLACE,
             state.window,
@@ -140,9 +142,11 @@ impl<'a> Mevi<'a> {
             atoms.ATOM,
             &[atoms.WM_DELETE_WINDOW],
         )?;
+        mevi_info!("Set main window properties");
 
         conn.map_window(state.window)?;
         conn.flush()?;
+        mevi_info!("Mapped the main window");
 
         let vis_info = Rc::new(RenderVisualInfo::new(conn, screen)?);
 
@@ -160,6 +164,7 @@ impl<'a> Mevi<'a> {
         let image_info = image.to_lines(&font_drawer);
         let file_info =
             RenderString::new(image_info, 5, GRAY_RENDER_COLOR, WHITE_RENDER_COLOR).pad(5);
+
         conn.create_pixmap(
             screen.root_depth,
             state.pms.font_buffer,
@@ -226,6 +231,14 @@ impl<'a> Mevi<'a> {
 
     fn toggle_show_file_info(&mut self) {
         self.show_file_info = !self.show_file_info;
+        mevi_info!(
+            "{} file info",
+            if self.show_file_info {
+                "Showing"
+            } else {
+                "Hiding"
+            }
+        );
         self.needs_redraw = true;
     }
 
@@ -278,6 +291,12 @@ impl<'a> Mevi<'a> {
             di.parent.w,
             di.parent.h,
         )?;
+
+        mevi_info!(
+            "Copied back buffer contents from pixmap {} to window {}",
+            self.state.pms.buffer,
+            self.state.window
+        );
 
         self.conn.free_pixmap(self.state.pms.buffer)?;
         self.conn.flush()?;

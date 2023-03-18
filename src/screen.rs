@@ -24,11 +24,13 @@ pub enum VisualError {
     NotTrueOrDirect(Visualtype),
 }
 
+#[derive(Debug)]
 pub struct RenderVisualInfo {
     pub root: VisualInfo,
     pub render: VisualInfo,
 }
 
+#[derive(Debug)]
 pub struct VisualInfo {
     pub id: Visualid,
     pub pict_format: Pictformat,
@@ -38,14 +40,16 @@ pub struct VisualInfo {
 
 impl RenderVisualInfo {
     pub fn new(conn: &RustConnection, screen: &Screen) -> Result<Self, VisualError> {
-        Ok(Self {
+        let rvi = Self {
             root: VisualInfo::find_appropriate_visual(
                 conn,
                 screen.root_depth,
                 Some(screen.root_visual),
             )?,
             render: VisualInfo::find_appropriate_visual(conn, 32, None)?,
-        })
+        };
+        mevi_info!("Found appropriate visuals: {rvi:?}");
+        Ok(rvi)
     }
 }
 

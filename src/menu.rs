@@ -4,20 +4,19 @@ use crate::{
     event::MenuEvent,
     font::{FontDrawer, RenderLine, RenderString},
     screen::RenderVisualInfo,
-    util::{Rect, StatefulRenderPicture, GRAY_RENDER_COLOR, WHITE_RENDER_COLOR},
+    util::{Rect, StatefulRenderPicture, GRAY_RENDER_COLOR, LIGHT_GRAY_RENDER_COLOR},
     xy_in_rect,
 };
 use anyhow::Result;
 use x11rb::{
     connection::Connection,
     protocol::{
-        render::{ConnectionExt as _, CreatePictureAux, Picture, PolyEdge, PolyMode},
+        render::{Color, ConnectionExt as _, CreatePictureAux, Picture, PolyEdge, PolyMode},
         xproto::{
             ConfigureWindowAux, ConnectionExt, CreateWindowAux, Rectangle, Screen, Window,
             WindowClass,
         },
     },
-    rust_connection::RustConnection,
 };
 
 #[derive(Debug, Clone, Copy)]
@@ -27,15 +26,16 @@ pub enum MenuAction {
     None,
 }
 
-pub struct Menu {
+pub struct Menu<'m, C: Connection> {
     id: u32,
+    conn: Rc<&'m C>,
     pict: Picture,
     vis_info: Rc<RenderVisualInfo>,
     font_drawer: Rc<FontDrawer>,
     pub visible: bool,
     items: Vec<MenuItem>,
     pub selected: Option<usize>,
-    rect: Rectangle,
+    pub rect: Rect,
 }
 
 #[derive(Debug, Clone)]
@@ -47,8 +47,8 @@ struct MenuItem {
 }
 
 impl MenuItem {
-    fn new(
-        conn: &RustConnection,
+    fn new<C: Connection>(
+        conn: &C,
         vis_info: &RenderVisualInfo,
         parent_id: Window,
         parent_w: u16,
@@ -65,31 +65,18 @@ impl MenuItem {
             rect,
         })
     }
-
-    fn set_active(&mut self) {
-        self.text.fg = self.srp.active.fg;
-        self.text.bg = self.srp.active.bg;
-    }
-
-    fn set_inactive(&mut self) {
-        self.text.fg = self.srp.inactive.fg;
-        self.text.bg = self.srp.inactive.bg;
-    }
-
-    pub fn get_picture(&mut self, selected: bool) -> Picture {
+    pub fn get_pict_and_color(&mut self, selected: bool) -> (Picture, Color) {
         if selected {
-            self.set_active();
-            self.srp.active.picture
+            (self.srp.active.picture, LIGHT_GRAY_RENDER_COLOR)
         } else {
-            self.set_inactive();
-            self.srp.inactive.picture
+            (self.srp.inactive.picture, GRAY_RENDER_COLOR)
         }
     }
 }
 
-impl Menu {
+impl<'m, C: Connection> Menu<'m, C> {
     pub fn create(
-        conn: &RustConnection,
+        conn: Rc<&'m C>,
         screen: &Screen,
         parent: Window,
         vis_info: Rc<RenderVisualInfo>,
@@ -99,23 +86,11 @@ impl Menu {
         let data = [
             (
                 MenuAction::ToggleFileInfo,
-                RenderString::new(
-                    vec![RenderLine::new(&font_drawer, "Show file info")],
-                    0,
-                    WHITE_RENDER_COLOR,
-                    GRAY_RENDER_COLOR,
-                )
-                .pad(5),
+                RenderString::new(vec![RenderLine::new(&font_drawer, "Show file info")]).pad(5),
             ),
             (
                 MenuAction::Exit,
-                RenderString::new(
-                    vec![RenderLine::new(&font_drawer, "Exit")],
-                    0,
-                    WHITE_RENDER_COLOR,
-                    GRAY_RENDER_COLOR,
-                )
-                .pad(5),
+                RenderString::new(vec![RenderLine::new(&font_drawer, "Exit")]).pad(5),
             ),
         ];
 
@@ -147,7 +122,7 @@ impl Menu {
         for (action, string) in data {
             let (_, h) = string.box_dimensions();
             let item = MenuItem::new(
-                conn,
+                *conn,
                 &vis_info,
                 id,
                 total_width,
@@ -161,53 +136,52 @@ impl Menu {
         }
         mevi_info!("Total menu dimensions: width -> {total_width}px, height -> {total_height}px");
 
+        let pict = conn.generate_id()?;
+
         let menu = Self {
             id,
-            pict: conn.generate_id()?,
+            conn,
+            pict,
             vis_info,
             visible: false,
             font_drawer,
             items: menu_items,
             selected: Some(0),
-            rect: Rectangle {
-                x: 0,
-                y: 0,
-                width: total_width,
-                height: offset_y as u16,
-            },
+            rect: Rect::new(0, 0, total_width, offset_y as u16),
         };
         mevi_info!("Constructed the menu");
         Ok(menu)
     }
 
-    pub fn handle_event(&mut self, conn: &RustConnection, e: MenuEvent) -> Result<MenuAction> {
+    pub fn handle_event(&mut self, e: MenuEvent) -> Result<MenuAction> {
         let mut action: Option<MenuAction> = None;
         let needs_redraw = match e {
-            MenuEvent::MapAt(x, y) => self.map_window(conn, x, y)?,
-            MenuEvent::Unmap => self.unmap_window(conn)?,
+            MenuEvent::MapAt(x, y) => self.map_window(x, y)?,
+            MenuEvent::Unmap => self.unmap_window()?,
             MenuEvent::Next => self.select_next(),
             MenuEvent::Prev => self.select_prev(),
             MenuEvent::FindHovered(x, y) => self.select_at_xy(x, y),
             MenuEvent::Select => {
                 action = Some(self.get_action());
-                self.unmap_window(conn)?
+                self.unmap_window()?
             }
             MenuEvent::Deselect => self.deselect(),
         };
 
         if needs_redraw {
-            self.draw(conn)?;
+            self.draw()?;
         }
 
         Ok(action.unwrap_or(MenuAction::None))
     }
 
-    fn map_window(&mut self, conn: &RustConnection, x: i16, y: i16) -> Result<bool> {
-        conn.configure_window(self.id, &ConfigureWindowAux::new().x(x as i32).y(y as i32))?;
-        conn.map_window(self.id)?;
-        conn.flush()?;
+    fn map_window(&mut self, x: i16, y: i16) -> Result<bool> {
+        self.conn
+            .configure_window(self.id, &ConfigureWindowAux::new().x(x as i32).y(y as i32))?;
+        self.conn.map_window(self.id)?;
+        self.conn.flush()?;
 
-        conn.render_create_picture(
+        self.conn.render_create_picture(
             self.pict,
             self.id,
             self.vis_info.root.pict_format,
@@ -226,35 +200,36 @@ impl Menu {
         Ok(true)
     }
 
-    fn unmap_window(&mut self, conn: &RustConnection) -> Result<bool> {
-        conn.render_free_picture(self.pict)?;
-        conn.unmap_window(self.id)?;
-        conn.flush()?;
+    fn unmap_window(&mut self) -> Result<bool> {
+        self.conn.render_free_picture(self.pict)?;
+        self.conn.unmap_window(self.id)?;
+        self.conn.flush()?;
         self.visible = false;
 
         mevi_info!("Unmapped menu window");
         Ok(true)
     }
 
-    fn draw(&mut self, conn: &RustConnection) -> Result<()> {
+    fn draw(&mut self) -> Result<()> {
         if !self.visible {
             return Ok(());
         }
 
-        mevi_info!("Redrawing menu");
         let selected = self.selected.unwrap_or(usize::MAX);
         for (i, item) in self.items.iter_mut().enumerate() {
+            mevi_info!("Redrawing menu item {}", i + 1);
+            let (pict, color) = item.get_pict_and_color(i == selected);
             self.font_drawer.draw(
-                conn,
-                item.get_picture(i == selected),
+                *self.conn,
+                pict,
                 self.pict,
                 &item.text,
-                Some(self.rect.width),
+                Some(self.rect.w),
                 item.rect.y,
+                color,
             )?;
-            mevi_info!("Drew menu item {}", i + 1);
         }
-        conn.flush()?;
+        self.conn.flush()?;
         Ok(())
     }
 
@@ -318,9 +293,5 @@ impl Menu {
         let needs_redraw = self.selected.is_some();
         self.selected = None;
         needs_redraw
-    }
-
-    pub fn rect(&self) -> Rectangle {
-        self.rect
     }
 }

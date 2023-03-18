@@ -4,7 +4,7 @@ use thiserror::Error;
 use x11rb::{
     connection::Connection,
     protocol::render::{ConnectionExt, Glyphinfo, Glyphset, Pictformat},
-    rust_connection::{ConnectionError, ReplyOrIdError, RustConnection},
+    rust_connection::{ConnectionError, ReplyOrIdError},
 };
 
 const FONT_SIZE: f32 = 13.0;
@@ -41,7 +41,7 @@ pub struct FontEncodedChunk {
 }
 
 impl LoadedFont {
-    pub fn new(conn: &RustConnection, pict_format: Pictformat) -> Result<Self, FontError> {
+    pub fn new<C: Connection>(conn: &C, pict_format: Pictformat) -> Result<Self, FontError> {
         let font = include_bytes!("../../share/fonts/JetBrainsMono-Regular.ttf") as &[u8];
         let settings = FontSettings {
             scale: FONT_SIZE,

@@ -1,4 +1,8 @@
-use x11rb::{protocol::Event, x11_utils::X11Error};
+use x11rb::{
+    connection::Connection,
+    protocol::{xproto::Rectangle, Event},
+    x11_utils::X11Error,
+};
 
 use crate::{app::Mevi, keys::Key};
 
@@ -22,8 +26,8 @@ pub enum MenuEvent {
 }
 
 impl MeviEvent {
-    pub fn handle(app: &Mevi, event: Event) -> Self {
-        let menu_rect = app.menu.rect();
+    pub fn handle<C: Connection>(app: &Mevi<C>, event: Event) -> Self {
+        let menu_rect: Rectangle = app.menu.rect.into();
         mevi_event!(event);
         match event {
             Event::Expose(e) if e.count == 0 => Self::DrawImage,
@@ -68,7 +72,7 @@ impl MeviEvent {
             Event::ClientMessage(e) => {
                 let data = e.data.as_data32();
                 if e.format == 32
-                    && e.window == app.state.window
+                    && e.window == app.state.window.window()
                     && data[0] == app.atoms.WM_DELETE_WINDOW
                 {
                     return Self::Exit;

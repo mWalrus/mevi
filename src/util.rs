@@ -7,7 +7,6 @@ use x11rb::{
         render::{Color, ConnectionExt as _, CreatePictureAux, Picture, Repeat},
         xproto::{ConnectionExt, Rectangle, Window},
     },
-    rust_connection::RustConnection,
 };
 
 pub static TITLE: &str = "mevi";
@@ -31,14 +30,6 @@ pub static WHITE_RENDER_COLOR: Color = Color {
     red: 0xffff,
     green: 0xffff,
     blue: 0xffff,
-    alpha: 0xffff,
-};
-
-#[allow(unused)]
-pub static BLACK_RENDER_COLOR: Color = Color {
-    red: 0x0000,
-    green: 0x0000,
-    blue: 0x0000,
     alpha: 0xffff,
 };
 
@@ -81,8 +72,8 @@ pub struct RenderPicture {
 }
 
 impl StatefulRenderPicture {
-    pub fn new(
-        conn: &RustConnection,
+    pub fn new<C: Connection>(
+        conn: &C,
         vis_info: &RenderVisualInfo,
         parent_id: Window,
         parent_w: u16,
@@ -132,8 +123,12 @@ pub struct DrawInfo {
 }
 
 impl DrawInfo {
-    pub fn calculate(conn: &RustConnection, state: &MeviState, image: &MeviImage) -> Result<Self> {
-        let attrs = conn.get_geometry(state.window)?.reply()?;
+    pub fn calculate<C: Connection>(
+        conn: &C,
+        state: &MeviState<C>,
+        image: &MeviImage,
+    ) -> Result<Self> {
+        let attrs = conn.get_geometry(state.window.window())?.reply()?;
         let (parent_w, parent_h) = (attrs.width, attrs.height);
         let (cx, cy) = (parent_w as i16 / 2, parent_h as i16 / 2);
 

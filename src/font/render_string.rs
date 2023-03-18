@@ -1,5 +1,3 @@
-use x11rb::protocol::render::Color;
-
 use super::{loader::FontEncodedChunk, FontDrawer};
 
 #[derive(Debug, Clone)]
@@ -34,29 +32,31 @@ pub struct RenderString {
     pub total_height: u16,
     pub vpad: u16,
     pub hpad: u16,
-    pub bg: Color,
-    pub fg: Color,
 }
 
 impl RenderString {
-    pub fn new(lines: Vec<RenderLine>, line_gap: u16, bg: Color, fg: Color) -> Self {
+    pub fn new(lines: Vec<RenderLine>) -> Self {
+        let total_height = lines[0].height * lines.len() as u16;
         let mut total_width = 0;
         for line in lines.iter() {
             if line.width > total_width {
                 total_width = line.width;
             }
         }
-        let total_height = lines[0].height * lines.len() as u16;
+
         Self {
             lines,
-            line_gap,
+            line_gap: 0,
             total_width: total_width as u16,
             total_height,
             vpad: 0,
             hpad: 0,
-            bg,
-            fg,
         }
+    }
+
+    pub fn line_gap(mut self, gap: u16) -> Self {
+        self.line_gap = gap;
+        self
     }
 
     pub fn pad(mut self, pad: u16) -> Self {

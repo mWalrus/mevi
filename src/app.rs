@@ -262,6 +262,7 @@ impl<'a, C: Connection + Debug> Mevi<'a, C> {
         self.w = di.parent.w;
         self.h = di.parent.h;
 
+        // create off-screen buffer for drawing
         self.conn.create_pixmap(
             self.screen.root_depth,
             self.state.pms.buffer.pixmap(),
@@ -271,7 +272,18 @@ impl<'a, C: Connection + Debug> Mevi<'a, C> {
         )?;
 
         self.fill_bg(&di)?;
+        self.fill_back_buffer(&di)?;
+        self.copy_to_window(&di)?;
 
+        // free the off-screen buffer
+        self.conn.free_pixmap(self.state.pms.buffer.pixmap())?;
+        self.conn.flush()?;
+
+        self.needs_redraw = false;
+        Ok(())
+    }
+
+    pub fn fill_back_buffer(&self, di: &DrawInfo) -> Result<()> {
         self.conn.copy_area(
             self.state.pms.image.pixmap(),
             self.state.pms.buffer.pixmap(),
@@ -285,7 +297,20 @@ impl<'a, C: Connection + Debug> Mevi<'a, C> {
         )?;
 
         self.draw_file_info()?;
+        Ok(())
+    }
 
+    fn fill_bg(&self, di: &DrawInfo) -> Result<()> {
+        self.conn.poly_fill_rectangle(
+            self.state.pms.buffer.pixmap(),
+            self.state.gcs.tile.gcontext(),
+            &[Rect::new(0, 0, di.parent.w, di.parent.h).into()],
+        )?;
+
+        Ok(())
+    }
+
+    fn copy_to_window(&self, di: &DrawInfo) -> Result<()> {
         self.conn.copy_area(
             self.state.pms.buffer.pixmap(),
             self.state.window.window(),
@@ -303,19 +328,6 @@ impl<'a, C: Connection + Debug> Mevi<'a, C> {
             self.state.pms.buffer.pixmap(),
             self.state.window.window()
         );
-
-        self.conn.free_pixmap(self.state.pms.buffer.pixmap())?;
-        self.conn.flush()?;
-        self.needs_redraw = false;
-        Ok(())
-    }
-
-    pub fn fill_bg(&self, di: &DrawInfo) -> Result<()> {
-        self.conn.poly_fill_rectangle(
-            self.state.pms.buffer.pixmap(),
-            self.state.gcs.tile.gcontext(),
-            &[Rect::new(0, 0, di.parent.w, di.parent.h).into()],
-        )?;
 
         Ok(())
     }

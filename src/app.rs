@@ -7,7 +7,7 @@ use crate::img::MeviImage;
 use crate::menu::{Menu, MenuAction};
 use crate::screen::RenderVisualInfo;
 use crate::state::MeviState;
-use crate::util::{DrawInfo, GRAY_RENDER_COLOR, INITIAL_SIZE, TITLE, WHITE_RENDER_COLOR};
+use crate::util::{DrawInfo, GRAY_RENDER_COLOR, INITIAL_SIZE, TITLE};
 use crate::{Atoms, CLI};
 use anyhow::Result;
 use x11rb::connection::Connection;
@@ -161,8 +161,7 @@ impl<'a, C: Connection> Mevi<'a, C> {
         )?;
 
         let image_info = image.to_lines(&font_drawer);
-        let file_info =
-            RenderString::new(image_info, 5, GRAY_RENDER_COLOR, WHITE_RENDER_COLOR).pad(5);
+        let file_info = RenderString::new(image_info).line_gap(5).pad(5);
 
         conn.create_pixmap(
             screen.root_depth,
@@ -319,6 +318,7 @@ impl<'a, C: Connection> Mevi<'a, C> {
                 &self.file_info,
                 None,
                 0,
+                GRAY_RENDER_COLOR,
             )?;
 
             self.conn.render_free_picture(self.state.pics.buffer)?;

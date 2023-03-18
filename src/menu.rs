@@ -4,14 +4,14 @@ use crate::{
     event::MenuEvent,
     font::{FontDrawer, RenderLine, RenderString},
     screen::RenderVisualInfo,
-    util::{Rect, StatefulRenderPicture, GRAY_RENDER_COLOR, WHITE_RENDER_COLOR},
+    util::{Rect, StatefulRenderPicture, GRAY_RENDER_COLOR, LIGHT_GRAY_RENDER_COLOR},
     xy_in_rect,
 };
 use anyhow::Result;
 use x11rb::{
     connection::Connection,
     protocol::{
-        render::{ConnectionExt as _, CreatePictureAux, Picture, PolyEdge, PolyMode},
+        render::{Color, ConnectionExt as _, CreatePictureAux, Picture, PolyEdge, PolyMode},
         xproto::{
             ConfigureWindowAux, ConnectionExt, CreateWindowAux, Rectangle, Screen, Window,
             WindowClass,
@@ -85,23 +85,11 @@ impl Menu {
         let data = [
             (
                 MenuAction::ToggleFileInfo,
-                RenderString::new(
-                    vec![RenderLine::new(&font_drawer, "Show file info")],
-                    0,
-                    WHITE_RENDER_COLOR,
-                    GRAY_RENDER_COLOR,
-                )
-                .pad(5),
+                RenderString::new(vec![RenderLine::new(&font_drawer, "Show file info")]).pad(5),
             ),
             (
                 MenuAction::Exit,
-                RenderString::new(
-                    vec![RenderLine::new(&font_drawer, "Exit")],
-                    0,
-                    WHITE_RENDER_COLOR,
-                    GRAY_RENDER_COLOR,
-                )
-                .pad(5),
+                RenderString::new(vec![RenderLine::new(&font_drawer, "Exit")]).pad(5),
             ),
         ];
 
@@ -230,13 +218,15 @@ impl Menu {
         mevi_info!("Redrawing menu");
         let selected = self.selected.unwrap_or(usize::MAX);
         for (i, item) in self.items.iter_mut().enumerate() {
+            let (pict, color) = item.get_pict_and_color(i == selected);
             self.font_drawer.draw(
                 conn,
-                item.get_picture(i == selected),
+                pict,
                 self.pict,
                 &item.text,
                 Some(self.rect.width),
                 item.rect.y,
+                color,
             )?;
             mevi_info!("Drew menu item {}", i + 1);
         }

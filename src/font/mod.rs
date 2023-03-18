@@ -2,13 +2,13 @@ pub mod loader;
 pub mod render_string;
 
 use self::loader::LoadedFont;
-use crate::util::Rect;
+use crate::util::{Rect, WHITE_RENDER_COLOR};
 use anyhow::Result;
 pub use render_string::{RenderLine, RenderString, ToRenderLine};
 use x11rb::{
     connection::Connection,
     protocol::{
-        render::{ConnectionExt, Glyphset, PictOp, Picture},
+        render::{Color, ConnectionExt, Glyphset, PictOp, Picture},
         xproto::Rectangle,
     },
 };
@@ -30,6 +30,7 @@ impl FontDrawer {
         string: &RenderString,
         alt_width: Option<u16>,
         y: i16,
+        bg: Color,
     ) -> Result<()> {
         let (w, h) = string.box_dimensions();
         let w = alt_width.unwrap_or(w);
@@ -37,9 +38,9 @@ impl FontDrawer {
         let fg_fill_area: Rectangle = Rect::new(0, 0, w, h).into();
         let bg_fill_area: Rectangle = Rect::new(0, y, w, h).into();
 
-        conn.render_fill_rectangles(PictOp::SRC, src, string.fg, &[fg_fill_area])?;
+        conn.render_fill_rectangles(PictOp::SRC, src, WHITE_RENDER_COLOR, &[fg_fill_area])?;
         mevi_info!("Filled foreground rect: {fg_fill_area:?}");
-        conn.render_fill_rectangles(PictOp::SRC, dst, string.bg, &[bg_fill_area])?;
+        conn.render_fill_rectangles(PictOp::SRC, dst, bg, &[bg_fill_area])?;
         mevi_info!("Filled background rect: {bg_fill_area:?}");
 
         let mut offset_y = y;

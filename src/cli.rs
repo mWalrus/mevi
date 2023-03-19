@@ -13,4 +13,6 @@ pub struct Cli {
         help = "Display image information in window"
     )]
     pub info: bool,
+    #[arg(long, short, required = false, help = "Start Mevi in fullscreen mode")]
+    pub fullscreen: bool,
 }

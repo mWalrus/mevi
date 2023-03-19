@@ -42,7 +42,7 @@ impl<'a, C: Connection + Debug> Mevi<'a, C> {
         image: MeviImage,
         bg_img: Image,
     ) -> Result<Self> {
-        let state = MeviState::init(conn)?;
+        let mut state = MeviState::init(conn)?;
         let vis_info = Rc::new(RenderVisualInfo::new(conn, screen)?);
         let font = LoadedFont::new(conn, vis_info.render.pict_format)?;
         let font_drawer = Rc::new(FontDrawer::new(font));
@@ -64,9 +64,11 @@ impl<'a, C: Connection + Debug> Mevi<'a, C> {
                 | EventMask::POINTER_MOTION,
         );
 
+        let wid = state.window.window();
+
         conn.create_window(
             screen.root_depth,
-            state.window.window(),
+            wid,
             screen.root,
             0,
             0,
@@ -82,7 +84,7 @@ impl<'a, C: Connection + Debug> Mevi<'a, C> {
 
         conn.change_property8(
             PropMode::REPLACE,
-            state.window.window(),
+            wid,
             atoms.WM_NAME,
             atoms.STRING,
             title.as_bytes(),
@@ -90,7 +92,7 @@ impl<'a, C: Connection + Debug> Mevi<'a, C> {
 
         conn.change_property8(
             PropMode::REPLACE,
-            state.window.window(),
+            wid,
             atoms._NET_WM_NAME,
             atoms.UTF8_STRING,
             title.as_bytes(),
@@ -98,14 +100,26 @@ impl<'a, C: Connection + Debug> Mevi<'a, C> {
 
         conn.change_property32(
             PropMode::REPLACE,
-            state.window.window(),
+            wid,
             atoms.WM_PROTOCOLS,
             atoms.ATOM,
             &[atoms.WM_DELETE_WINDOW],
         )?;
+
+        if CLI.fullscreen {
+            conn.change_property32(
+                PropMode::REPLACE,
+                wid,
+                atoms._NET_WM_STATE,
+                atoms.ATOM,
+                &[atoms._NET_WM_STATE_FULLSCREEN],
+            )?;
+            state.fullscreen = true;
+        }
+
         mevi_info!("Set main window properties");
 
-        conn.map_window(state.window.window())?;
+        conn.map_window(wid)?;
         conn.flush()?;
         mevi_info!("Mapped the main window");
 
@@ -113,7 +127,7 @@ impl<'a, C: Connection + Debug> Mevi<'a, C> {
         let menu = Menu::create(
             Rc::clone(&conn),
             screen,
-            state.window.window(),
+            wid,
             Rc::clone(&vis_info),
             Rc::clone(&font_drawer),
         )?;

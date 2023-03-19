@@ -29,12 +29,9 @@ pub struct Mevi<'a, C: Connection> {
     pub state: MeviState<'a, C>,
     pub font_drawer: Rc<FontDrawer>,
     image: MeviImage,
-    needs_redraw: bool,
     pub menu: Menu<'a, C>,
     pub w: u16,
     pub h: u16,
-    show_file_info: bool,
-    should_exit: bool,
 }
 
 impl<'a, C: Connection + Debug> Mevi<'a, C> {
@@ -130,12 +127,9 @@ impl<'a, C: Connection + Debug> Mevi<'a, C> {
             state,
             font_drawer,
             image,
-            needs_redraw: false,
             menu,
             w: INITIAL_SIZE.0,
             h: INITIAL_SIZE.1,
-            show_file_info: CLI.info,
-            should_exit: false,
         })
     }
 
@@ -220,26 +214,26 @@ impl<'a, C: Connection + Debug> Mevi<'a, C> {
             let event = self.conn.wait_for_event()?;
 
             match MeviEvent::handle(self, event) {
-                MeviEvent::DrawImage => self.needs_redraw = true,
+                MeviEvent::DrawImage => self.state.should_redraw = true,
                 MeviEvent::ToggleFileInfo => self.toggle_show_file_info(),
                 MeviEvent::ToggleFullscreen => self.toggle_fullscreen()?,
                 MeviEvent::Menu(menu_evt) => match self.menu.handle_event(menu_evt)? {
                     MenuAction::ToggleFileInfo => self.toggle_show_file_info(),
-                    MenuAction::Exit => self.should_exit = true,
                     MenuAction::Fullscreen => self.toggle_fullscreen()?,
+                    MenuAction::Exit => self.state.should_exit = true,
                     MenuAction::None => {}
                 },
-                MeviEvent::Exit => self.should_exit = true,
+                MeviEvent::Exit => self.state.should_exit = true,
                 MeviEvent::Error(e) => mevi_err!("{e:?}"),
                 MeviEvent::Idle => {}
             }
 
-            if self.should_exit {
+            if self.state.should_exit {
                 mevi_info!("Exit signal received");
                 break;
             }
 
-            if self.needs_redraw {
+            if self.state.should_redraw {
                 self.draw_image()?;
             }
         }
@@ -277,17 +271,18 @@ impl<'a, C: Connection + Debug> Mevi<'a, C> {
 
         Ok(())
     }
+
     fn toggle_show_file_info(&mut self) {
-        self.show_file_info = !self.show_file_info;
+        self.state.draw_info = !self.state.draw_info;
         mevi_info!(
             "{} file info",
-            if self.show_file_info {
+            if self.state.draw_info {
                 "Showing"
             } else {
                 "Hiding"
             }
         );
-        self.needs_redraw = true;
+        self.state.should_redraw = true;
     }
 
     fn draw_image(&mut self) -> Result<()> {
@@ -312,7 +307,7 @@ impl<'a, C: Connection + Debug> Mevi<'a, C> {
         self.conn.free_pixmap(self.state.pms.buffer.pixmap())?;
         self.conn.flush()?;
 
-        self.needs_redraw = false;
+        self.state.should_redraw = false;
         Ok(())
     }
 
@@ -366,7 +361,7 @@ impl<'a, C: Connection + Debug> Mevi<'a, C> {
     }
 
     fn draw_file_info(&self) -> Result<()> {
-        if self.show_file_info {
+        if self.state.draw_info {
             self.conn.render_create_picture(
                 self.state.pics.buffer.picture(),
                 self.state.pms.buffer.pixmap(),

@@ -44,6 +44,7 @@ impl MeviEvent {
                 Key::Up => Self::Menu(MenuEvent::Prev),
                 Key::Down => Self::Menu(MenuEvent::Next),
                 Key::Esc if app.menu.visible => Self::Menu(MenuEvent::Unmap),
+                Key::Esc if app.state.fullscreen => Self::ToggleFullscreen,
                 Key::Esc => Self::Exit,
                 Key::Enter => Self::Menu(MenuEvent::Select),
                 _ => Self::Idle,

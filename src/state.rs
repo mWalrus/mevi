@@ -9,12 +9,18 @@ use x11rb::{
     },
 };
 
+use crate::CLI;
+
 pub struct MeviState<'s, C: Connection> {
     pub window: WindowWrapper<'s, C>,
     pub menu: WindowWrapper<'s, C>,
     pub pms: Pms<'s, C>,
     pub gcs: Gcs<'s, C>,
     pub pics: Pics<'s, C>,
+    pub should_redraw: bool,
+    pub should_exit: bool,
+    pub draw_info: bool,
+    pub fullscreen: bool,
 }
 
 pub struct Gcs<'s, C: Connection> {
@@ -106,6 +112,10 @@ impl<'s, C: Connection + Debug> MeviState<'s, C> {
             pms,
             gcs,
             pics,
+            should_redraw: false,
+            should_exit: false,
+            draw_info: CLI.info,
+            fullscreen: false,
         };
         Ok(state)
     }

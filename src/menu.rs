@@ -22,6 +22,7 @@ use x11rb::{
 #[derive(Debug, Clone, Copy)]
 pub enum MenuAction {
     ToggleFileInfo,
+    Fullscreen,
     Exit,
     None,
 }
@@ -87,6 +88,10 @@ impl<'m, C: Connection> Menu<'m, C> {
             (
                 MenuAction::ToggleFileInfo,
                 RenderString::new(vec![RenderLine::new(&font_drawer, "Show file info")]).pad(5),
+            ),
+            (
+                MenuAction::Fullscreen,
+                RenderString::new(vec![RenderLine::new(&font_drawer, "Fullscreen")]).pad(5),
             ),
             (
                 MenuAction::Exit,

@@ -222,9 +222,11 @@ impl<'a, C: Connection + Debug> Mevi<'a, C> {
             match MeviEvent::handle(self, event) {
                 MeviEvent::DrawImage => self.needs_redraw = true,
                 MeviEvent::ToggleFileInfo => self.toggle_show_file_info(),
+                MeviEvent::ToggleFullscreen => self.toggle_fullscreen()?,
                 MeviEvent::Menu(menu_evt) => match self.menu.handle_event(menu_evt)? {
                     MenuAction::ToggleFileInfo => self.toggle_show_file_info(),
                     MenuAction::Exit => self.should_exit = true,
+                    MenuAction::Fullscreen => self.toggle_fullscreen()?,
                     MenuAction::None => {}
                 },
                 MeviEvent::Exit => self.should_exit = true,
@@ -244,6 +246,37 @@ impl<'a, C: Connection + Debug> Mevi<'a, C> {
         Ok(())
     }
 
+    fn toggle_fullscreen(&mut self) -> Result<()> {
+        let wid = self.state.window.window();
+
+        let data = if self.state.fullscreen {
+            vec![]
+        } else {
+            vec![self.atoms._NET_WM_STATE_FULLSCREEN]
+        };
+
+        self.conn.unmap_window(wid)?;
+        self.conn.change_property32(
+            PropMode::REPLACE,
+            wid,
+            self.atoms._NET_WM_STATE,
+            self.atoms.ATOM,
+            &data,
+        )?;
+        self.conn.map_window(wid)?;
+        self.conn.flush()?;
+
+        self.state.fullscreen = !self.state.fullscreen;
+
+        mevi_info!(
+            "Changed property _NET_WM_STATE ({}) of window {} to {:?}",
+            self.atoms._NET_WM_STATE,
+            wid,
+            data
+        );
+
+        Ok(())
+    }
     fn toggle_show_file_info(&mut self) {
         self.show_file_info = !self.show_file_info;
         mevi_info!(

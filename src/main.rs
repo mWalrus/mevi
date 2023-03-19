@@ -38,6 +38,8 @@ x11rb::atom_manager! {
         WM_NAME,
         STRING,
         _NET_WM_NAME,
+        _NET_WM_STATE,
+        _NET_WM_STATE_FULLSCREEN,
     }
 }
 

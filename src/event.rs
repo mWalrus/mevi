@@ -9,6 +9,7 @@ use crate::{app::Mevi, keys::Key};
 pub enum MeviEvent {
     DrawImage,
     ToggleFileInfo,
+    ToggleFullscreen,
     Menu(MenuEvent),
     Exit,
     Idle,
@@ -32,6 +33,7 @@ impl MeviEvent {
         match event {
             Event::Expose(e) if e.count == 0 => Self::DrawImage,
             Event::KeyRelease(e) => match Key::from(e.detail) {
+                Key::F => Self::ToggleFullscreen,
                 Key::I => Self::ToggleFileInfo,
                 Key::M if !app.menu.visible => {
                     let x = (app.w / 2).saturating_sub(menu_rect.width / 2);

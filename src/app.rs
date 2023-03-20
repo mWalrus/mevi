@@ -8,7 +8,7 @@ use crate::img::MeviImage;
 use crate::menu::{Menu, MenuAction};
 use crate::screen::RenderVisualInfo;
 use crate::state::MeviState;
-use crate::util::{DrawInfo, Rect, GRAY_RENDER_COLOR, INITIAL_SIZE, TITLE};
+use crate::util::{Rect, GRAY_RENDER_COLOR, INITIAL_SIZE, TITLE};
 use crate::{Atoms, CLI};
 use anyhow::Result;
 use x11rb::connection::Connection;
@@ -299,25 +299,55 @@ impl<'a, C: Connection + Debug> Mevi<'a, C> {
         self.state.should_redraw = true;
     }
 
-    fn draw_image(&mut self) -> Result<()> {
-        let di = DrawInfo::calculate(*self.conn, &self.state, &self.image)?;
-        self.w = di.parent.w;
-        self.h = di.parent.h;
+    pub fn calculate_rects(&mut self) -> Result<(Rect, Rect)> {
+        let attrs = self
+            .conn
+            .get_geometry(self.state.window.window())?
+            .reply()?;
+        let (parent_w, parent_h) = (attrs.width, attrs.height);
+        let (cx, cy) = (parent_w as i16 / 2, parent_h as i16 / 2);
 
-        // create off-screen buffer for drawing
+        let child_x = cx - (self.image.w as i16 / 2);
+        let child_y = cy - (self.image.h as i16 / 2);
+
+        let (child_x, parent_x, child_w) = if self.image.w > parent_w {
+            (child_x.abs(), 0, parent_w)
+        } else {
+            (0, child_x, self.image.w)
+        };
+        let (child_y, parent_y, child_h) = if self.image.h > parent_h {
+            (child_y.abs(), 0, parent_h)
+        } else {
+            (0, child_y, self.image.h)
+        };
+
+        let parent = Rect::new(parent_x, parent_y, parent_w, parent_h);
+        let child = Rect::new(child_x, child_y, child_w, child_h);
+
+        self.w = parent.w;
+        self.h = parent.h;
+
+        mevi_info!("Calculated parent draw info: {parent:?}");
+        mevi_info!("Calculated child draw info: {child:?}");
+
+        Ok((parent, child))
+    }
+
+    fn draw_image(&mut self) -> Result<()> {
+        let (parent, child) = self.calculate_rects()?;
+
         self.conn.create_pixmap(
             self.screen.root_depth,
             self.state.pms.buffer.pixmap(),
             self.screen.root,
-            di.parent.w,
-            di.parent.h,
+            self.w,
+            self.h,
         )?;
 
-        self.fill_bg(&di)?;
-        self.fill_back_buffer(&di)?;
-        self.copy_to_window(&di)?;
+        self.fill_bg()?;
+        self.fill_back_buffer(parent, child)?;
+        self.copy_to_window()?;
 
-        // free the off-screen buffer
         self.conn.free_pixmap(self.state.pms.buffer.pixmap())?;
         self.conn.flush()?;
 
@@ -325,34 +355,34 @@ impl<'a, C: Connection + Debug> Mevi<'a, C> {
         Ok(())
     }
 
-    pub fn fill_back_buffer(&self, di: &DrawInfo) -> Result<()> {
+    pub fn fill_back_buffer(&self, parent_rect: Rect, child_rect: Rect) -> Result<()> {
         self.conn.copy_area(
             self.state.pms.image.pixmap(),
             self.state.pms.buffer.pixmap(),
             self.state.gcs.buffer.gcontext(),
-            di.child.x,
-            di.child.y,
-            di.parent.x,
-            di.parent.y,
-            di.child.w,
-            di.child.h,
+            child_rect.x,
+            child_rect.y,
+            parent_rect.x,
+            parent_rect.y,
+            child_rect.w,
+            child_rect.h,
         )?;
 
         self.draw_file_info()?;
         Ok(())
     }
 
-    fn fill_bg(&self, di: &DrawInfo) -> Result<()> {
+    fn fill_bg(&self) -> Result<()> {
         self.conn.poly_fill_rectangle(
             self.state.pms.buffer.pixmap(),
             self.state.gcs.tile.gcontext(),
-            &[Rect::new(0, 0, di.parent.w, di.parent.h).into()],
+            &[Rect::new(0, 0, self.w, self.h).into()],
         )?;
 
         Ok(())
     }
 
-    fn copy_to_window(&self, di: &DrawInfo) -> Result<()> {
+    fn copy_to_window(&self) -> Result<()> {
         self.conn.copy_area(
             self.state.pms.buffer.pixmap(),
             self.state.window.window(),
@@ -361,8 +391,8 @@ impl<'a, C: Connection + Debug> Mevi<'a, C> {
             0,
             0,
             0,
-            di.parent.w,
-            di.parent.h,
+            self.w,
+            self.h,
         )?;
 
         mevi_info!(

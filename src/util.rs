@@ -1,4 +1,4 @@
-use crate::{img::MeviImage, screen::RenderVisualInfo, state::MeviState};
+use crate::screen::RenderVisualInfo;
 use anyhow::Result;
 use std::fmt::Debug;
 use x11rb::{
@@ -114,46 +114,6 @@ impl StatefulRenderPicture {
                 bg: GRAY_RENDER_COLOR,
             },
         })
-    }
-}
-#[derive(Debug)]
-pub struct DrawInfo {
-    pub child: Rect,
-    pub parent: Rect,
-}
-
-impl DrawInfo {
-    pub fn calculate<C: Connection>(
-        conn: &C,
-        state: &MeviState<C>,
-        image: &MeviImage,
-    ) -> Result<Self> {
-        let attrs = conn.get_geometry(state.window.window())?.reply()?;
-        let (parent_w, parent_h) = (attrs.width, attrs.height);
-        let (cx, cy) = (parent_w as i16 / 2, parent_h as i16 / 2);
-
-        let child_x = cx - (image.w as i16 / 2);
-        let child_y = cy - (image.h as i16 / 2);
-
-        let (child_x, parent_x, child_w) = if image.w > parent_w {
-            (child_x.abs(), 0, parent_w)
-        } else {
-            (0, child_x, image.w)
-        };
-        let (child_y, parent_y, child_h) = if image.h > parent_h {
-            (child_y.abs(), 0, parent_h)
-        } else {
-            (0, child_y, image.h)
-        };
-
-        let info = DrawInfo {
-            child: Rect::new(child_x, child_y, child_w, child_h),
-            parent: Rect::new(parent_x, parent_y, parent_w, parent_h),
-        };
-
-        mevi_info!("Calculated draw info: {info:?}");
-
-        Ok(info)
     }
 }
 

@@ -80,7 +80,7 @@ impl<'a, C: Connection + Debug> Mevi<'a, C> {
             &win_aux,
         )?;
 
-        mevi_info!("Created main window");
+        info!("Created main window");
 
         conn.change_property8(
             PropMode::REPLACE,
@@ -117,11 +117,11 @@ impl<'a, C: Connection + Debug> Mevi<'a, C> {
             state.fullscreen = true;
         }
 
-        mevi_info!("Set main window properties");
+        info!("Set main window properties");
 
         conn.map_window(wid)?;
         conn.flush()?;
-        mevi_info!("Mapped the main window");
+        info!("Mapped the main window");
 
         let conn = Rc::new(conn);
         let menu = Menu::create(
@@ -238,12 +238,12 @@ impl<'a, C: Connection + Debug> Mevi<'a, C> {
                     MenuAction::None => {}
                 },
                 MeviEvent::Exit => self.state.should_exit = true,
-                MeviEvent::Error(e) => mevi_err!("{e:?}"),
+                MeviEvent::Error(e) => err!("{e:?}"),
                 MeviEvent::Idle => {}
             }
 
             if self.state.should_exit {
-                mevi_info!("Exit signal received");
+                info!("Exit signal received");
                 break;
             }
 
@@ -276,11 +276,9 @@ impl<'a, C: Connection + Debug> Mevi<'a, C> {
 
         self.state.fullscreen = !self.state.fullscreen;
 
-        mevi_info!(
+        info!(
             "Changed property _NET_WM_STATE ({}) of window {} to {:?}",
-            self.atoms._NET_WM_STATE,
-            wid,
-            data
+            self.atoms._NET_WM_STATE, wid, data
         );
 
         Ok(())
@@ -288,7 +286,7 @@ impl<'a, C: Connection + Debug> Mevi<'a, C> {
 
     fn toggle_show_file_info(&mut self) {
         self.state.draw_info = !self.state.draw_info;
-        mevi_info!(
+        info!(
             "{} file info",
             if self.state.draw_info {
                 "Showing"
@@ -327,8 +325,8 @@ impl<'a, C: Connection + Debug> Mevi<'a, C> {
         self.w = parent.w;
         self.h = parent.h;
 
-        mevi_info!("Calculated parent draw info: {parent:?}");
-        mevi_info!("Calculated child draw info: {child:?}");
+        info!("Calculated parent draw info: {parent:?}");
+        info!("Calculated child draw info: {child:?}");
 
         Ok((parent, child))
     }
@@ -395,7 +393,7 @@ impl<'a, C: Connection + Debug> Mevi<'a, C> {
             self.h,
         )?;
 
-        mevi_info!(
+        info!(
             "Copied back buffer contents from pixmap {} to window {}",
             self.state.pms.buffer.pixmap(),
             self.state.window.window()

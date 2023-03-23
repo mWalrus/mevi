@@ -136,10 +136,10 @@ impl<'m, C: Connection> Menu<'m, C> {
                 Rect::new(0, offset_y, total_width, h),
             )?;
             offset_y += h as i16;
-            mevi_info!("Constructed menu item with rect: {:?}", item.rect);
+            info!("Constructed menu item with rect: {:?}", item.rect);
             menu_items.push(item);
         }
-        mevi_info!("Total menu dimensions: width -> {total_width}px, height -> {total_height}px");
+        info!("Total menu dimensions: width -> {total_width}px, height -> {total_height}px");
 
         let pict = conn.generate_id()?;
 
@@ -154,7 +154,7 @@ impl<'m, C: Connection> Menu<'m, C> {
             selected: Some(0),
             rect: Rect::new(0, 0, total_width, offset_y as u16),
         };
-        mevi_info!("Constructed the menu");
+        info!("Constructed the menu");
         Ok(menu)
     }
 
@@ -200,7 +200,7 @@ impl<'m, C: Connection> Menu<'m, C> {
         self.visible = true;
         self.selected = Some(0);
 
-        mevi_info!("Mapped menu window to pos (x: {x}, y: {y})");
+        info!("Mapped menu window to pos (x: {x}, y: {y})");
 
         Ok(true)
     }
@@ -211,7 +211,7 @@ impl<'m, C: Connection> Menu<'m, C> {
         self.conn.flush()?;
         self.visible = false;
 
-        mevi_info!("Unmapped menu window");
+        info!("Unmapped menu window");
         Ok(true)
     }
 
@@ -222,7 +222,7 @@ impl<'m, C: Connection> Menu<'m, C> {
 
         let selected = self.selected.unwrap_or(usize::MAX);
         for (i, item) in self.items.iter_mut().enumerate() {
-            mevi_info!("Redrawing menu item {}", i + 1);
+            info!("Redrawing menu item {}", i + 1);
             let (pict, color) = item.get_pict_and_color(i == selected);
             self.font_drawer.draw(
                 *self.conn,

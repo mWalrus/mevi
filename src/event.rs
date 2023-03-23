@@ -1,10 +1,9 @@
+use crate::{app::Mevi, keys::Key};
 use x11rb::{
     connection::Connection,
     protocol::{xproto::Rectangle, Event},
     x11_utils::X11Error,
 };
-
-use crate::{app::Mevi, keys::Key};
 
 pub enum MeviEvent {
     DrawImage,
@@ -27,10 +26,10 @@ pub enum MenuEvent {
 }
 
 impl MeviEvent {
-    pub fn handle<C: Connection>(app: &Mevi<C>, event: Event) -> Self {
+    pub fn handle<C: Connection>(app: &Mevi<C>, evt: Event) -> Self {
         let menu_rect: Rectangle = app.menu.rect.into();
-        mevi_event!(event);
-        match event {
+        event!(evt);
+        match evt {
             Event::Expose(e) if e.count == 0 => Self::DrawImage,
             Event::KeyRelease(e) => match Key::from(e.detail) {
                 Key::F => Self::ToggleFullscreen,

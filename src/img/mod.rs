@@ -96,7 +96,7 @@ impl MeviImage {
             path: path.to_str().unwrap().to_owned(),
             format,
         };
-        mevi_info!("Loaded image: {mevi_image:?}");
+        info!("Loaded image: {mevi_image:?}");
 
         Ok(mevi_image)
     }
@@ -128,7 +128,7 @@ pub fn get_bg_image(conn: &RustConnection, pixel_layout: PixelLayout) -> Result<
     )?;
 
     let image = image.reencode(*FOREIGN_PIXEL_LAYOUT, pixel_layout, conn.setup())?;
-    mevi_info!("Loaded background image");
+    info!("Loaded background image");
 
     Ok(image.deref().to_owned())
 }

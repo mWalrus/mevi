@@ -100,11 +100,11 @@ impl<'s, C: Connection + Debug> MeviState<'s, C> {
             font_buffer: PictureWrapper::for_picture(conn, conn.generate_id()?),
         };
 
-        mevi_info!("Window: {}", window.window());
-        mevi_info!("Menu window: {}", menu.window());
-        mevi_info!("Pixmaps: {pms:?}");
-        mevi_info!("Gcontexts: {gcs:?}");
-        mevi_info!("Pictures: {pics:?}");
+        info!("Window: {}", window.window());
+        info!("Menu window: {}", menu.window());
+        info!("Pixmaps: {pms:?}");
+        info!("Gcontexts: {gcs:?}");
+        info!("Pictures: {pics:?}");
 
         let state = Self {
             window,

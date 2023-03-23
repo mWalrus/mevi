@@ -49,7 +49,7 @@ impl RenderVisualInfo {
             )?,
             render: VisualInfo::find_appropriate_visual(conn, 32, None)?,
         };
-        mevi_info!("Found appropriate visuals: {rvi:?}");
+        info!("Found appropriate visuals: {rvi:?}");
         Ok(rvi)
     }
 }
@@ -85,7 +85,7 @@ impl VisualInfo {
                 })
                 .flatten();
             if let Some(c) = candidate {
-                mevi_info!("Found pict visual for visual: {c:?}");
+                info!("Found pict visual for visual: {c:?}");
                 return Ok(VisualInfo {
                     id: c.visual,
                     pict_format: c.format,
@@ -114,6 +114,6 @@ pub fn pixel_layout_from_visual(screen: &Screen, id: Visualid) -> Result<PixelLa
     };
     let pixel_layout = PixelLayout::from_visual_type(*visual_type)?;
     assert_eq!(pixel_layout.depth(), depth);
-    mevi_info!("Found pixel layout from visual {id}: {pixel_layout:?}");
+    info!("Found pixel layout from visual {id}: {pixel_layout:?}");
     Ok(pixel_layout)
 }

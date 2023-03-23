@@ -18,12 +18,8 @@ use clap::Parser;
 use cli::Cli;
 use img::MeviImage;
 use lazy_static::lazy_static;
+use log::LogType;
 use x11rb::connection::Connection;
-
-pub(crate) enum LogType {
-    Event,
-    Info,
-}
 
 lazy_static! {
     static ref CLI: Cli = Cli::parse();
@@ -45,10 +41,10 @@ x11rb::atom_manager! {
 
 fn main() -> Result<()> {
     let (conn, screen_num) = x11rb::connect(None)?;
-    mevi_info!("Connected to the X server");
+    info!("Connected to the X server");
 
     let screen = &conn.setup().roots[screen_num];
-    mevi_info!("Got screen handle");
+    info!("Got screen handle");
 
     let pixel_layout = screen::pixel_layout_from_visual(screen, screen.root_visual)?;
 
@@ -60,11 +56,11 @@ fn main() -> Result<()> {
 
     match Mevi::init(&conn, screen, atoms, image, bg_img) {
         Ok(mut mevi) => {
-            mevi_info!("Initialized Mevi!");
+            info!("Initialized Mevi!");
             mevi.run_event_loop()?;
         }
         Err(e) => {
-            mevi_err!("{e:?}");
+            err!("{e:?}");
             std::process::exit(1);
         }
     };

@@ -1,17 +1,45 @@
+#[derive(PartialEq, PartialOrd)]
+pub(crate) enum LogType {
+    Event,
+    Info,
+    Error,
+}
+
 macro_rules! __mevi_dbg {
     ($type:expr, $($arg:tt)*) => {{
-        if $crate::CLI.debug {
-            use ::colored::Colorize;
-            let t = match $type {
-                $crate::LogType::Event => "[Event]".bold().blue(),
-                $crate::LogType::Info => "[Info]".bold(),
-            };
-            println!("{}: {}", t, format_args!($($arg)*));
-        }
+        use ::colored::Colorize;
+        use ::chrono::Local;
+        match $type {
+            $crate::LogType::Event if $crate::CLI.debug => {
+                println!(
+                    "{:?} {}: {}",
+                    Local::now(),
+                    "[Event]".bold().blue(),
+                    format_args!($($arg)*)
+                )
+            },
+            $crate::LogType::Info if $crate::CLI.debug => {
+                println!(
+                    "{:?} {}: {}",
+                    Local::now(),
+                    "[Info]".bold().green(),
+                    format_args!($($arg)*)
+                )
+            }
+            $crate::LogType::Error => {
+                println!(
+                    "{:?} {}: {}",
+                    Local::now(),
+                    "[Error]".bold().red(),
+                    format_args!($($arg)*)
+                )
+            }
+            _ => {}
+        };
     }};
 }
 
-macro_rules! mevi_event {
+macro_rules! event {
     ($arg:expr) => {{
         use x11rb::protocol::Event;
         match $arg {
@@ -21,15 +49,14 @@ macro_rules! mevi_event {
     }};
 }
 
-macro_rules! mevi_info {
+macro_rules! info {
     ($($arg:tt)*) => {{
         __mevi_dbg!($crate::LogType::Info, $($arg)*);
     }};
 }
 
-macro_rules! mevi_err {
+macro_rules! err {
     ($($arg:tt)*) => {{
-        use ::colored::Colorize;
-        println!("{} {}", "[Error]".bold().red(), format_args!($($arg)*));
+        __mevi_dbg!($crate::LogType::Error, $($arg)*);
     }};
 }

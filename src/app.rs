@@ -82,6 +82,44 @@ impl<'a, C: Connection + Debug> Mevi<'a, C> {
 
         info!("Created main window");
 
+        Self::set_window_properties(conn, wid, &mut state, &atoms, &title)?;
+        info!("Set main window properties");
+
+        conn.map_window(wid)?;
+        conn.flush()?;
+        info!("Mapped the main window");
+
+        let conn = Rc::new(conn);
+        let menu = Menu::create(
+            Rc::clone(&conn),
+            screen,
+            wid,
+            Rc::clone(&vis_info),
+            Rc::clone(&font_drawer),
+        )?;
+
+        Ok(Self {
+            atoms,
+            conn,
+            screen,
+            vis_info,
+            file_info,
+            state,
+            font_drawer,
+            image,
+            menu,
+            w: INITIAL_SIZE.0,
+            h: INITIAL_SIZE.1,
+        })
+    }
+
+    fn set_window_properties(
+        conn: &C,
+        wid: u32,
+        state: &mut MeviState<C>,
+        atoms: &Atoms,
+        title: &str,
+    ) -> Result<()> {
         conn.change_property8(
             PropMode::REPLACE,
             wid,
@@ -116,35 +154,7 @@ impl<'a, C: Connection + Debug> Mevi<'a, C> {
             )?;
             state.fullscreen = true;
         }
-
-        info!("Set main window properties");
-
-        conn.map_window(wid)?;
-        conn.flush()?;
-        info!("Mapped the main window");
-
-        let conn = Rc::new(conn);
-        let menu = Menu::create(
-            Rc::clone(&conn),
-            screen,
-            wid,
-            Rc::clone(&vis_info),
-            Rc::clone(&font_drawer),
-        )?;
-
-        Ok(Self {
-            atoms,
-            conn,
-            screen,
-            vis_info,
-            file_info,
-            state,
-            font_drawer,
-            image,
-            menu,
-            w: INITIAL_SIZE.0,
-            h: INITIAL_SIZE.1,
-        })
+        Ok(())
     }
 
     pub fn set_bg(conn: &C, st: &MeviState<C>, sc: &Screen, i: Image) -> Result<()> {

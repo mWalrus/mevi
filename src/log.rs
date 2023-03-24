@@ -7,51 +7,37 @@ pub(crate) enum LogType {
 
 macro_rules! __mevi_dbg {
     ($type:expr, $($arg:tt)*) => {{
-        use ::colored::Colorize;
         use ::chrono::Local;
-        match $type {
-            $crate::LogType::Event if $crate::CLI.debug => {
-                println!(
-                    "{:?} {}: {}",
-                    Local::now(),
-                    "[Event]".bold().blue(),
-                    format_args!($($arg)*)
-                )
-            },
-            $crate::LogType::Info if $crate::CLI.debug => {
-                println!(
-                    "{:?} {}: {}",
-                    Local::now(),
-                    "[Info]".bold().green(),
-                    format_args!($($arg)*)
-                )
-            }
-            $crate::LogType::Error => {
-                println!(
-                    "{:?} {}: {}",
-                    Local::now(),
-                    "[Error]".bold().red(),
-                    format_args!($($arg)*)
-                )
-            }
-            _ => {}
+        use ::colored::Colorize;
+
+        let now = Local::now();
+        let type_ = match $type {
+            $crate::LogType::Event => "[Event]".bold().blue(),
+            $crate::LogType::Info => "[Info]".bold().green(),
+            $crate::LogType::Error => "[Error]".bold().red(),
         };
+        println!("{now:?} {type_} {}", format_args!($($arg)*))
     }};
 }
 
 macro_rules! event {
     ($arg:expr) => {{
         use x11rb::protocol::Event;
+        use $crate::CLI;
         match $arg {
-            Event::MotionNotify(_) | Event::Error(_) => {}
-            _ => __mevi_dbg!($crate::LogType::Event, "{:?}", $arg),
+            Event::MotionNotify(_) | Event::ConfigureNotify(_) | Event::Error(_) => {}
+            _ if CLI.debug => __mevi_dbg!($crate::LogType::Event, "{:?}", $arg),
+            _ => {}
         }
     }};
 }
 
 macro_rules! info {
     ($($arg:tt)*) => {{
-        __mevi_dbg!($crate::LogType::Info, $($arg)*);
+        use $crate::CLI;
+        if CLI.debug {
+            __mevi_dbg!($crate::LogType::Info, $($arg)*);
+        }
     }};
 }
 
